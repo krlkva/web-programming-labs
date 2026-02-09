@@ -355,3 +355,55 @@ function createFooter(container) {
     footer.appendChild(footerContent);
     container.appendChild(footer);
 }
+
+// Добавляем стили для модального окна
+const modalStyles = document.createElement('style');
+modalStyles.textContent = `
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        animation: fadeIn 0.3s ease-out;
+    }
+    
+    .modal-content {
+        background-color: white;
+        border-radius: 12px;
+        padding: 2rem;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        animation: slideUp 0.3s ease-out;
+    }
+    
+    .modal-content h3 {
+        margin-bottom: 1.5rem;
+        color: #2d3748;
+        font-size: 1.5rem;
+    }
+    
+    .modal-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        justify-content: flex-end;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+`;
+document.head.appendChild(modalStyles);
