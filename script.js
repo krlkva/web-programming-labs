@@ -1,596 +1,445 @@
 // Состояние приложения
 let tasks = [];
-let categories = [
-    { id: 'work', name: 'Work', color: '#667eea', icon: 'briefcase', tasks: [] },
-    { id: 'home', name: 'Home', color: '#4CAF50', icon: 'home', tasks: [] },
-    { id: 'other', name: 'Other', color: '#FF9800', icon: 'star', tasks: [] }
-];
-let currentCategory = 'work';
+let currentFilter = 'all';
+let currentSort = 'date-asc';
+let currentSearch = '';
 let draggedTask = null;
+let editingTaskId = null;
 
-// Класс Task
+// Класс задачи
 class Task {
-    constructor(id, title, description, date, time, category, priority = 'medium', completed = false) {
+    constructor(id, title, date, completed = false) {
         this.id = id;
         this.title = title;
-        this.description = description;
         this.date = date;
-        this.time = time;
-        this.category = category;
-        this.priority = priority;
         this.completed = completed;
         this.createdAt = new Date().toISOString();
-        this.order = tasks.length;
     }
 }
 
 // Инициализация приложения
 document.addEventListener('DOMContentLoaded', () => {
     createAppStructure();
-    loadData();
-    renderApp();
+    loadTasksFromLocalStorage();
+    renderTasks();
     setupEventListeners();
-    updateDate();
 });
 
 // Создание структуры приложения
 function createAppStructure() {
-    // Основной контейнер
     const app = document.createElement('div');
     app.className = 'todo-app';
     
     // Шапка
     const header = document.createElement('header');
     header.className = 'app-header';
-    
-    const headerLeft = document.createElement('div');
-    headerLeft.className = 'header-left';
-    
-    const title = document.createElement('h1');
-    title.textContent = 'ToDo List';
-    
-    const dateNav = document.createElement('div');
-    dateNav.className = 'date-nav';
-    dateNav.innerHTML = `
-        <i class="fas fa-chevron-left" id="prev-day"></i>
-        <span class="current-date" id="current-date"></span>
-        <i class="fas fa-chevron-right" id="next-day"></i>
+    header.innerHTML = `
+        <h1>ToDo List</h1>
+        <p>Организуйте свои задачи эффективно</p>
     `;
-    
-    headerLeft.appendChild(title);
-    headerLeft.appendChild(dateNav);
-    
-    const headerStats = document.createElement('div');
-    headerStats.className = 'header-stats';
-    headerStats.innerHTML = `
-        <div class="stat-item" id="total-tasks">0 задач</div>
-        <div class="stat-item" id="completed-tasks">0 выполнено</div>
-    `;
-    
-    header.appendChild(headerLeft);
-    header.appendChild(headerStats);
     
     // Основной контент
     const content = document.createElement('div');
     content.className = 'app-content';
     
-    // Сайдбар
-    const sidebar = document.createElement('aside');
-    sidebar.className = 'sidebar';
+    // Форма добавления задачи
+    const form = document.createElement('div');
+    form.className = 'add-task-form';
+    form.innerHTML = `
+        <div class="form-row">
+            <div class="form-group">
+                <label for="task-title">Название задачи</label>
+                <input type="text" id="task-title" placeholder="Введите название задачи">
+            </div>
+            <div class="form-group">
+                <label for="task-date">Дата выполнения</label>
+                <input type="date" id="task-date">
+            </div>
+        </div>
+        <button class="add-button" id="add-task-btn">
+            <span style="font-size: 18px; line-height: 1;">+</span> Добавить задачу
+        </button>
+    `;
     
-    const sidebarMenu = document.createElement('ul');
-    sidebarMenu.className = 'sidebar-menu';
-    
-    const menuItems = [
-        { icon: 'chart-pie', text: 'Overview', active: false },
-        { icon: 'list', text: 'List', active: true },
-        { icon: 'th-large', text: 'Board', active: false },
-        { icon: 'stream', text: 'Timeline', active: false },
-        { icon: 'calendar', text: 'Calendar', active: false },
-        { icon: 'tachometer-alt', text: 'Dashboard', active: false },
-        { icon: 'sitemap', text: 'Workflow', active: false }
-    ];
-    
-    menuItems.forEach(item => {
-        const li = document.createElement('li');
-        li.className = `menu-item ${item.active ? 'active' : ''}`;
-        li.innerHTML = `<i class="fas fa-${item.icon}"></i> ${item.text}`;
-        sidebarMenu.appendChild(li);
-    });
-    
-    const categoriesSection = document.createElement('div');
-    categoriesSection.className = 'categories';
-    categoriesSection.id = 'categories-list';
-    
-    const addCategoryBtn = document.createElement('button');
-    addCategoryBtn.className = 'add-category-btn';
-    addCategoryBtn.innerHTML = '<i class="fas fa-plus"></i> Add Category';
-    
-    sidebar.appendChild(sidebarMenu);
-    sidebar.appendChild(categoriesSection);
-    sidebar.appendChild(addCategoryBtn);
-    
-    // Основная область
-    const main = document.createElement('main');
-    main.className = 'main-content';
-    
-    const contentHeader = document.createElement('div');
-    contentHeader.className = 'content-header';
-    
-    const pageTitle = document.createElement('h2');
-    pageTitle.textContent = 'Today\'s Tasks';
-    
-    const contentActions = document.createElement('div');
-    contentActions.className = 'content-actions';
-    contentActions.innerHTML = `
+    // Управление (поиск, фильтр, сортировка)
+    const controls = document.createElement('div');
+    controls.className = 'controls';
+    controls.innerHTML = `
         <div class="search-box">
-            <i class="fas fa-search"></i>
-            <input type="text" id="task-search" placeholder="Search tasks...">
+            <input type="text" id="task-search" placeholder="Поиск задач...">
         </div>
-        <button class="filter-btn" id="filter-btn">
-            <i class="fas fa-filter"></i> Filter
-        </button>
-        <button class="add-task-btn" id="add-task-btn">
-            <i class="fas fa-plus"></i> Add Task
-        </button>
-    `;
-    
-    contentHeader.appendChild(pageTitle);
-    contentHeader.appendChild(contentActions);
-    
-    const taskColumns = document.createElement('div');
-    taskColumns.className = 'task-columns';
-    taskColumns.innerHTML = `
-        <div class="task-column" id="work-column">
-            <div class="column-header">
-                <div class="column-title">
-                    <i class="fas fa-briefcase"></i>
-                    <span>Work</span>
-                </div>
-                <div class="column-count" id="work-count">0</div>
+        <div class="filter-row">
+            <div class="filter-group">
+                <label for="task-filter">Фильтр</label>
+                <select id="task-filter">
+                    <option value="all">Все задачи</option>
+                    <option value="active">Активные</option>
+                    <option value="completed">Выполненные</option>
+                </select>
             </div>
-            <ul class="task-list" id="work-tasks"></ul>
-        </div>
-        <div class="task-column" id="home-column">
-            <div class="column-header">
-                <div class="column-title">
-                    <i class="fas fa-home"></i>
-                    <span>Home</span>
-                </div>
-                <div class="column-count" id="home-count">0</div>
+            <div class="sort-group">
+                <label for="task-sort">Сортировка</label>
+                <select id="task-sort">
+                    <option value="date-asc">Дата (по возрастанию)</option>
+                    <option value="date-desc">Дата (по убыванию)</option>
+                    <option value="title-asc">Название (А-Я)</option>
+                    <option value="title-desc">Название (Я-А)</option>
+                </select>
             </div>
-            <ul class="task-list" id="home-tasks"></ul>
-        </div>
-        <div class="task-column" id="other-column">
-            <div class="column-header">
-                <div class="column-title">
-                    <i class="fas fa-star"></i>
-                    <span>Other</span>
-                </div>
-                <div class="column-count" id="other-count">0</div>
-            </div>
-            <ul class="task-list" id="other-tasks"></ul>
         </div>
     `;
     
-    main.appendChild(contentHeader);
-    main.appendChild(taskColumns);
+    // Контейнер задач
+    const tasksContainer = document.createElement('div');
+    tasksContainer.className = 'tasks-container';
+    tasksContainer.innerHTML = `
+        <div class="tasks-header">
+            <h2>Мои задачи</h2>
+            <div class="task-count" id="task-count">0 задач</div>
+        </div>
+        <ul class="task-list" id="task-list"></ul>
+    `;
     
-    content.appendChild(sidebar);
-    content.appendChild(main);
-    
-    // Модальное окно
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'task-modal';
-    modal.innerHTML = `
-        <div class="modal">
+    // Модальное окно для редактирования
+    const editModal = document.createElement('div');
+    editModal.className = 'edit-modal';
+    editModal.id = 'edit-modal';
+    editModal.innerHTML = `
+        <div class="modal-content">
             <div class="modal-header">
-                <h3 id="modal-title">Add New Task</h3>
-                <button class="close-btn" id="close-modal">&times;</button>
+                <h3>Редактировать задачу</h3>
+                <button class="modal-close" id="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="task-form">
+                <form id="edit-task-form">
                     <div class="form-group">
-                        <label for="task-title-input">Title</label>
-                        <input type="text" id="task-title-input" required>
+                        <label for="edit-task-title">Название задачи</label>
+                        <input type="text" id="edit-task-title" required>
                     </div>
                     <div class="form-group">
-                        <label for="task-description">Description</label>
-                        <textarea id="task-description" placeholder="Add description..."></textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="task-date">Date</label>
-                            <input type="date" id="task-date" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="task-time">Time</label>
-                            <input type="time" id="task-time">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="task-category">Category</label>
-                            <select id="task-category" required>
-                                <option value="work">Work</option>
-                                <option value="home">Home</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="task-priority">Priority</label>
-                            <select id="task-priority">
-                                <option value="low">Low</option>
-                                <option value="medium" selected>Medium</option>
-                                <option value="high">High</option>
-                            </select>
-                        </div>
+                        <label for="edit-task-date">Дата выполнения</label>
+                        <input type="date" id="edit-task-date" required>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" id="cancel-btn">Cancel</button>
-                <button type="submit" form="task-form" class="btn btn-primary" id="save-btn">Save Task</button>
+                <button type="button" class="btn btn-secondary" id="modal-cancel">Отмена</button>
+                <button type="submit" form="edit-task-form" class="btn btn-primary" id="modal-save">Сохранить</button>
             </div>
         </div>
     `;
     
+    content.appendChild(form);
+    content.appendChild(controls);
+    content.appendChild(tasksContainer);
+    
     app.appendChild(header);
     app.appendChild(content);
-    app.appendChild(modal);
+    app.appendChild(editModal);
     
     document.body.appendChild(app);
 }
 
 // Настройка обработчиков событий
 function setupEventListeners() {
-    // Кнопка добавления задачи
-    document.getElementById('add-task-btn').addEventListener('click', () => {
-        openTaskModal();
-    });
+    // Добавление задачи
+    document.getElementById('add-task-btn').addEventListener('click', addTask);
     
     // Поиск
     document.getElementById('task-search').addEventListener('input', (e) => {
-        filterTasks(e.target.value);
+        currentSearch = e.target.value.toLowerCase();
+        renderTasks();
     });
     
-    // Кнопка фильтра
-    document.getElementById('filter-btn').addEventListener('click', () => {
-        // В будущем можно добавить расширенный фильтр
-        alert('Filter functionality can be extended here');
+    // Фильтр
+    document.getElementById('task-filter').addEventListener('change', (e) => {
+        currentFilter = e.target.value;
+        renderTasks();
     });
     
-    // Модальное окно
-    document.getElementById('close-modal').addEventListener('click', closeTaskModal);
-    document.getElementById('cancel-btn').addEventListener('click', closeTaskModal);
-    document.getElementById('task-form').addEventListener('submit', handleTaskSubmit);
-    
-    // Навигация по датам
-    document.getElementById('prev-day').addEventListener('click', () => {
-        // Здесь можно добавить функционал переключения дней
-        alert('Date navigation can be implemented here');
+    // Сортировка
+    document.getElementById('task-sort').addEventListener('change', (e) => {
+        currentSort = e.target.value;
+        renderTasks();
     });
     
-    document.getElementById('next-day').addEventListener('click', () => {
-        // Здесь можно добавить функционал переключения дней
-        alert('Date navigation can be implemented here');
+    // Модальное окно редактирования
+    document.getElementById('modal-close').addEventListener('click', closeEditModal);
+    document.getElementById('modal-cancel').addEventListener('click', closeEditModal);
+    document.getElementById('edit-task-form').addEventListener('submit', saveEditedTask);
+    
+    // Добавление задачи по Enter в поле названия
+    document.getElementById('task-title').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addTask();
+        }
     });
-    
-    // Категории в сайдбаре
-    document.querySelectorAll('.category').forEach(category => {
-        category.addEventListener('click', () => {
-            const categoryId = category.dataset.category;
-            filterByCategory(categoryId);
-        });
-    });
-}
-
-// Открытие модального окна для добавления/редактирования задачи
-function openTaskModal(task = null) {
-    const modal = document.getElementById('task-modal');
-    const modalTitle = document.getElementById('modal-title');
-    const form = document.getElementById('task-form');
-    const submitBtn = document.getElementById('save-btn');
-    
-    if (task) {
-        // Редактирование существующей задачи
-        modalTitle.textContent = 'Edit Task';
-        submitBtn.textContent = 'Update Task';
-        form.dataset.editId = task.id;
-        
-        document.getElementById('task-title-input').value = task.title;
-        document.getElementById('task-description').value = task.description || '';
-        document.getElementById('task-date').value = task.date;
-        document.getElementById('task-time').value = task.time || '';
-        document.getElementById('task-category').value = task.category;
-        document.getElementById('task-priority').value = task.priority;
-    } else {
-        // Добавление новой задачи
-        modalTitle.textContent = 'Add New Task';
-        submitBtn.textContent = 'Save Task';
-        delete form.dataset.editId;
-        
-        // Сброс формы
-        form.reset();
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('task-date').value = today;
-    }
-    
-    modal.classList.add('active');
-}
-
-// Закрытие модального окна
-function closeTaskModal() {
-    document.getElementById('task-modal').classList.remove('active');
-    document.getElementById('task-form').reset();
-    delete document.getElementById('task-form').dataset.editId;
-}
-
-// Обработка отправки формы задачи
-function handleTaskSubmit(e) {
-    e.preventDefault();
-    
-    const form = e.target;
-    const editId = form.dataset.editId;
-    
-    const taskData = {
-        title: document.getElementById('task-title-input').value.trim(),
-        description: document.getElementById('task-description').value.trim(),
-        date: document.getElementById('task-date').value,
-        time: document.getElementById('task-time').value,
-        category: document.getElementById('task-category').value,
-        priority: document.getElementById('task-priority').value
-    };
-    
-    if (!taskData.title) {
-        alert('Please enter a task title');
-        return;
-    }
-    
-    if (editId) {
-        // Обновление существующей задачи
-        updateTask(editId, taskData);
-    } else {
-        // Добавление новой задачи
-        addTask(taskData);
-    }
-    
-    closeTaskModal();
 }
 
 // Добавление новой задачи
-function addTask(taskData) {
+function addTask() {
+    const titleInput = document.getElementById('task-title');
+    const dateInput = document.getElementById('task-date');
+    
+    const title = titleInput.value.trim();
+    const date = dateInput.value;
+    
+    if (!title) {
+        alert('Пожалуйста, введите название задачи');
+        titleInput.focus();
+        return;
+    }
+    
+    if (!date) {
+        alert('Пожалуйста, выберите дату выполнения');
+        dateInput.focus();
+        return;
+    }
+    
     const task = new Task(
         Date.now().toString(),
-        taskData.title,
-        taskData.description,
-        taskData.date,
-        taskData.time,
-        taskData.category,
-        taskData.priority
+        title,
+        date
     );
     
     tasks.push(task);
-    saveData();
-    renderApp();
-}
-
-// Обновление задачи
-function updateTask(taskId, updatedData) {
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
-    if (taskIndex !== -1) {
-        tasks[taskIndex] = {
-            ...tasks[taskIndex],
-            ...updatedData
-        };
-        saveData();
-        renderApp();
-    }
+    saveTasksToLocalStorage();
+    renderTasks();
+    
+    // Сброс формы
+    titleInput.value = '';
+    dateInput.value = '';
+    titleInput.focus();
 }
 
 // Удаление задачи
 function deleteTask(taskId) {
-    if (confirm('Are you sure you want to delete this task?')) {
-        tasks = tasks.filter(t => t.id !== taskId);
-        saveData();
-        renderApp();
-    }
+    tasks = tasks.filter(task => task.id !== taskId);
+    saveTasksToLocalStorage();
+    renderTasks();
 }
 
-// Переключение статуса выполнения задачи
+// Переключение статуса выполнения
 function toggleTaskCompletion(taskId) {
     const task = tasks.find(t => t.id === taskId);
     if (task) {
         task.completed = !task.completed;
-        saveData();
-        renderApp();
+        saveTasksToLocalStorage();
+        renderTasks();
     }
 }
 
-// Фильтрация задач по поисковому запросу
-function filterTasks(searchTerm) {
-    const searchLower = searchTerm.toLowerCase();
-    const allTasks = document.querySelectorAll('.task-item');
+// Открытие модального окна для редактирования
+function openEditModal(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
     
-    allTasks.forEach(taskElement => {
-        const title = taskElement.querySelector('.task-title').textContent.toLowerCase();
-        const description = taskElement.querySelector('.task-description')?.textContent.toLowerCase() || '';
-        
-        if (title.includes(searchLower) || description.includes(searchLower)) {
-            taskElement.style.display = 'block';
-        } else {
-            taskElement.style.display = 'none';
-        }
-    });
-}
-
-// Фильтрация по категории
-function filterByCategory(categoryId) {
-    currentCategory = categoryId;
-    renderApp();
-}
-
-// Обновление даты
-function updateDate() {
-    const now = new Date();
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    document.getElementById('current-date').textContent = now.toLocaleDateString('ru-RU', options);
-}
-
-// Обновление статистики
-function updateStats() {
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(t => t.completed).length;
+    editingTaskId = taskId;
     
-    document.getElementById('total-tasks').textContent = `${totalTasks} tasks`;
-    document.getElementById('completed-tasks').textContent = `${completedTasks} completed`;
+    document.getElementById('edit-task-title').value = task.title;
+    document.getElementById('edit-task-date').value = task.date;
     
-    // Обновление счетчиков по категориям
-    categories.forEach(category => {
-        const categoryTasks = tasks.filter(t => t.category === category.id);
-        const completedCategoryTasks = categoryTasks.filter(t => t.completed).length;
-        const countElement = document.getElementById(`${category.id}-count`);
-        
-        if (countElement) {
-            countElement.textContent = `${categoryTasks.length}`;
-        }
-        
-        // Обновление статистики в сайдбаре
-        const categoryElement = document.querySelector(`[data-category="${category.id}"]`);
-        if (categoryElement) {
-            const statsElement = categoryElement.querySelector('.category-stats');
-            if (statsElement) {
-                statsElement.textContent = `Completed: ${completedCategoryTasks} / ${categoryTasks.length}`;
-            }
-            
-            // Обновление прогресс-бара
-            const progressBar = categoryElement.querySelector('.progress-bar');
-            if (progressBar && categoryTasks.length > 0) {
-                const progress = (completedCategoryTasks / categoryTasks.length) * 100;
-                progressBar.style.width = `${progress}%`;
-            }
-        }
-    });
+    document.getElementById('edit-modal').classList.add('active');
+    document.getElementById('edit-task-title').focus();
 }
 
-// Рендеринг категорий в сайдбаре
-function renderCategories() {
-    const categoriesList = document.getElementById('categories-list');
-    categoriesList.innerHTML = '';
-    
-    categories.forEach(category => {
-        const categoryTasks = tasks.filter(t => t.category === category.id);
-        const completedTasks = categoryTasks.filter(t => t.completed).length;
-        const progress = categoryTasks.length > 0 ? (completedTasks / categoryTasks.length) * 100 : 0;
-        
-        const categoryElement = document.createElement('div');
-        categoryElement.className = `category category-${category.id}`;
-        categoryElement.dataset.category = category.id;
-        
-        categoryElement.innerHTML = `
-            <div class="category-header">
-                <div class="category-title">
-                    <div class="category-icon">
-                        <i class="fas fa-${category.icon}"></i>
-                    </div>
-                    <span>${category.name}</span>
-                </div>
-                <div class="category-stats">Completed: ${completedTasks} / ${categoryTasks.length}</div>
-            </div>
-            <div class="category-progress">
-                <div class="progress-bar" style="width: ${progress}%"></div>
-            </div>
-        `;
-        
-        categoryElement.addEventListener('click', () => {
-            filterByCategory(category.id);
-        });
-        
-        categoriesList.appendChild(categoryElement);
-    });
+// Закрытие модального окна
+function closeEditModal() {
+    document.getElementById('edit-modal').classList.remove('active');
+    editingTaskId = null;
 }
 
-// Рендеринг задач по колонкам
+// Сохранение отредактированной задачи
+function saveEditedTask(e) {
+    e.preventDefault();
+    
+    if (!editingTaskId) return;
+    
+    const title = document.getElementById('edit-task-title').value.trim();
+    const date = document.getElementById('edit-task-date').value;
+    
+    if (!title || !date) {
+        alert('Пожалуйста, заполните все поля');
+        return;
+    }
+    
+    const task = tasks.find(t => t.id === editingTaskId);
+    if (task) {
+        task.title = title;
+        task.date = date;
+        saveTasksToLocalStorage();
+        renderTasks();
+    }
+    
+    closeEditModal();
+}
+
+// Фильтрация задач
+function filterTasks() {
+    let filteredTasks = [...tasks];
+    
+    // Фильтрация по статусу
+    if (currentFilter === 'active') {
+        filteredTasks = filteredTasks.filter(task => !task.completed);
+    } else if (currentFilter === 'completed') {
+        filteredTasks = filteredTasks.filter(task => task.completed);
+    }
+    
+    // Поиск
+    if (currentSearch) {
+        filteredTasks = filteredTasks.filter(task =>
+            task.title.toLowerCase().includes(currentSearch)
+        );
+    }
+    
+    return filteredTasks;
+}
+
+// Сортировка задач
+function sortTasks(tasksList) {
+    const sortedTasks = [...tasksList];
+    
+    switch (currentSort) {
+        case 'date-asc':
+            sortedTasks.sort((a, b) => new Date(a.date) - new Date(b.date));
+            break;
+        case 'date-desc':
+            sortedTasks.sort((a, b) => new Date(b.date) - new Date(a.date));
+            break;
+        case 'title-asc':
+            sortedTasks.sort((a, b) => a.title.localeCompare(b.title));
+            break;
+        case 'title-desc':
+            sortedTasks.sort((a, b) => b.title.localeCompare(a.title));
+            break;
+    }
+    
+    return sortedTasks;
+}
+
+// Обновление счетчика задач
+function updateTaskCount() {
+    const filteredTasks = filterTasks();
+    const totalTasks = filteredTasks.length;
+    const completedTasks = filteredTasks.filter(task => task.completed).length;
+    const activeTasks = totalTasks - completedTasks;
+    
+    let countText = `${totalTasks} задач`;
+    if (totalTasks > 0) {
+        countText += ` (${activeTasks} активных, ${completedTasks} выполненных)`;
+    }
+    
+    document.getElementById('task-count').textContent = countText;
+}
+
+// Отрисовка задач
 function renderTasks() {
-    // Очистка всех колонок
-    categories.forEach(category => {
-        const taskList = document.getElementById(`${category.id}-tasks`);
-        taskList.innerHTML = '';
+    const taskList = document.getElementById('task-list');
+    taskList.innerHTML = '';
+    
+    const filteredTasks = filterTasks();
+    const sortedTasks = sortTasks(filteredTasks);
+    
+    if (sortedTasks.length === 0) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state';
         
-        const categoryTasks = tasks
-            .filter(t => t.category === category.id)
-            .sort((a, b) => new Date(a.date) - new Date(b.date));
-        
-        if (categoryTasks.length === 0) {
-            const emptyState = document.createElement('div');
-            emptyState.className = 'empty-column';
+        if (currentSearch || currentFilter !== 'all') {
             emptyState.innerHTML = `
-                <i class="fas fa-tasks"></i>
-                <p>No tasks in this category</p>
+                <h3>Задачи не найдены</h3>
+                <p>Попробуйте изменить критерии поиска или фильтрации</p>
             `;
-            taskList.appendChild(emptyState);
         } else {
-            categoryTasks.forEach(task => {
-                const taskElement = createTaskElement(task);
-                taskList.appendChild(taskElement);
-            });
+            emptyState.innerHTML = `
+                <h3>Нет задач</h3>
+                <p>Добавьте свою первую задачу!</p>
+            `;
         }
-    });
+        
+        taskList.appendChild(emptyState);
+    } else {
+        sortedTasks.forEach(task => {
+            const taskItem = createTaskElement(task);
+            taskList.appendChild(taskItem);
+        });
+    }
+    
+    updateTaskCount();
 }
 
 // Создание элемента задачи
 function createTaskElement(task) {
-    const taskElement = document.createElement('li');
-    taskElement.className = `task-item ${task.category} ${task.completed ? 'completed' : ''}`;
-    taskElement.dataset.id = task.id;
-    taskElement.draggable = true;
+    const taskItem = document.createElement('li');
+    taskItem.className = `task-item ${task.completed ? 'completed' : ''}`;
+    taskItem.id = `task-${task.id}`;
+    taskItem.draggable = true;
+    taskItem.dataset.id = task.id;
     
-    const timeDisplay = task.time ? `${task.time}` : 'All day';
-    
-    taskElement.innerHTML = `
-        <div class="task-priority priority-${task.priority}"></div>
-        <div class="task-header">
-            <div class="task-title">${task.title}</div>
-            <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}>
-        </div>
-        ${task.description ? `<div class="task-description">${task.description}</div>` : ''}
-        <div class="task-footer">
-            <div class="task-time">
-                <i class="far fa-clock"></i>
-                ${timeDisplay}
-            </div>
-            <div class="task-actions">
-                <button class="task-btn edit-btn" title="Edit task">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="task-btn delete-btn" title="Delete task">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    `;
-    
-    // Обработчики событий
-    const checkbox = taskElement.querySelector('.task-checkbox');
+    // Чекбокс
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'task-checkbox';
+    checkbox.checked = task.completed;
     checkbox.addEventListener('change', () => toggleTaskCompletion(task.id));
     
-    const editBtn = taskElement.querySelector('.edit-btn');
-    editBtn.addEventListener('click', () => openTaskModal(task));
+    // Содержимое задачи
+    const content = document.createElement('div');
+    content.className = 'task-content';
     
-    const deleteBtn = taskElement.querySelector('.delete-btn');
-    deleteBtn.addEventListener('click', () => deleteTask(task.id));
+    const title = document.createElement('div');
+    title.className = 'task-title';
+    title.textContent = task.title;
+    
+    const date = document.createElement('div');
+    date.className = 'task-date';
+    date.textContent = formatDate(task.date);
+    
+    content.appendChild(title);
+    content.appendChild(date);
+    
+    // Кнопки действий
+    const actions = document.createElement('div');
+    actions.className = 'task-actions';
+    
+    const editBtn = document.createElement('button');
+    editBtn.className = 'edit-btn';
+    editBtn.innerHTML = '✏️';
+    editBtn.title = 'Редактировать';
+    editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditModal(task.id);
+    });
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.innerHTML = '🗑️';
+    deleteBtn.title = 'Удалить';
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
+            deleteTask(task.id);
+        }
+    });
+    
+    actions.appendChild(editBtn);
+    actions.appendChild(deleteBtn);
+    
+    // Сборка элемента
+    taskItem.appendChild(checkbox);
+    taskItem.appendChild(content);
+    taskItem.appendChild(actions);
     
     // Drag and drop
-    taskElement.addEventListener('dragstart', handleDragStart);
-    taskElement.addEventListener('dragover', handleDragOver);
-    taskElement.addEventListener('drop', handleDrop);
-    taskElement.addEventListener('dragend', handleDragEnd);
+    taskItem.addEventListener('dragstart', handleDragStart);
+    taskItem.addEventListener('dragover', handleDragOver);
+    taskItem.addEventListener('drop', handleDrop);
+    taskItem.addEventListener('dragend', handleDragEnd);
     
-    return taskElement;
+    return taskItem;
 }
 
-// Drag and Drop handlers
+// Drag and drop обработчики
 function handleDragStart(e) {
     draggedTask = this;
     this.classList.add('dragging');
@@ -600,7 +449,6 @@ function handleDragStart(e) {
 
 function handleDragOver(e) {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
     return false;
 }
 
@@ -609,15 +457,19 @@ function handleDrop(e) {
     e.stopPropagation();
     
     if (draggedTask !== this) {
-        const taskId = draggedTask.dataset.id;
-        const targetColumn = this.closest('.task-list').parentElement.id.replace('-tasks', '');
+        const draggedId = draggedTask.dataset.id;
+        const targetId = this.dataset.id;
         
-        // Обновление категории задачи
-        const task = tasks.find(t => t.id === taskId);
-        if (task) {
-            task.category = targetColumn;
-            saveData();
-            renderApp();
+        const draggedIndex = tasks.findIndex(t => t.id === draggedId);
+        const targetIndex = tasks.findIndex(t => t.id === targetId);
+        
+        if (draggedIndex > -1 && targetIndex > -1) {
+            // Перемещаем задачу в массиве
+            const [removed] = tasks.splice(draggedIndex, 1);
+            tasks.splice(targetIndex, 0, removed);
+            
+            saveTasksToLocalStorage();
+            renderTasks();
         }
     }
     
@@ -629,89 +481,40 @@ function handleDragEnd() {
     draggedTask = null;
 }
 
-// Основной рендеринг приложения
-function renderApp() {
-    renderCategories();
-    renderTasks();
-    updateStats();
+// Форматирование даты
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+        return 'Сегодня';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+        return 'Завтра';
+    } else {
+        // Формат: дд.мм.гггг
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
+    }
 }
 
-// Сохранение данных в localStorage
-function saveData() {
+// Сохранение в localStorage
+function saveTasksToLocalStorage() {
     localStorage.setItem('todo-tasks', JSON.stringify(tasks));
 }
 
-// Загрузка данных из localStorage
-function loadData() {
+// Загрузка из localStorage
+function loadTasksFromLocalStorage() {
     const savedTasks = localStorage.getItem('todo-tasks');
     if (savedTasks) {
         try {
             tasks = JSON.parse(savedTasks);
         } catch (error) {
-            console.error('Error loading tasks:', error);
+            console.error('Ошибка при загрузке задач:', error);
             tasks = [];
-            // Добавляем демо-задачи
-            addDemoTasks();
         }
-    } else {
-        // Добавляем демо-задачи
-        addDemoTasks();
     }
-}
-
-// Добавление демо-задач
-function addDemoTasks() {
-    const demoTasks = [
-        {
-            id: '1',
-            title: 'Meeting with client',
-            description: 'John Doe from TechX company',
-            date: new Date().toISOString().split('T')[0],
-            time: '12:00',
-            category: 'work',
-            priority: 'high',
-            completed: false,
-            createdAt: new Date().toISOString(),
-            order: 0
-        },
-        {
-            id: '2',
-            title: 'Grocery shopping',
-            description: 'Shopping list: 2 x Rolls, apple juice',
-            date: new Date().toISOString().split('T')[0],
-            time: '17:00',
-            category: 'home',
-            priority: 'medium',
-            completed: false,
-            createdAt: new Date().toISOString(),
-            order: 1
-        },
-        {
-            id: '3',
-            title: 'Prepare presentation',
-            description: 'For Unicorn Corp meeting next week',
-            date: new Date().toISOString().split('T')[0],
-            time: '',
-            category: 'work',
-            priority: 'high',
-            completed: true,
-            createdAt: new Date().toISOString(),
-            order: 2
-        },
-        {
-            id: '4',
-            title: 'Walk the dog',
-            description: '',
-            date: new Date().toISOString().split('T')[0],
-            time: '22:00',
-            category: 'other',
-            priority: 'low',
-            completed: false,
-            createdAt: new Date().toISOString(),
-            order: 3
-        }
-    ];
-    
-    tasks = demoTasks;
-    saveData();
 }
