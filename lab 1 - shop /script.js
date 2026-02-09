@@ -3,41 +3,49 @@ const products = [
         id: 1,
         name: "CLINIQUE cheek pop оттенок Black Honey",
         price: 2500,
+        image: "images/blush 2.JPG"
     },
     {
         id: 2,
         name: "Dior Backstage Glow Face Palette",
         price: 8900,
+        mage: "images/highlighter.JPG"
     },
     {
         id: 3,
         name: "Гель-фиксатор для бровей PUSY",
         price: 1000,
+        image: "images/eyebrow_gel.JPG"
     },
     {
         id: 4,
         name: "Maybelline Sky High тушь для ресниц",
         price: 1600,
+        image: "images/mascara.JPG"
     },
     {
         id: 5,
         name: "Кремовые румяна RHODE в стике оттенок Piggi",
         price: 6500,
+        image: "images/blush.JPG"
     },
     {
         id: 6,
         name: "Блеск для губ KIKO Milano Lip Volume",
         price: 1100,
+        image: "images/lipgloss.JPG"
     },
     {
         id: 7,
         name: "Расческа Tangle Teezer The Ultimate",
         price: 2000,
+        image: "images/hairbrush.JPG"
     },
     {
         id: 8,
         name: "Miss Dior Eau De Parfum Парфюмерная вода",
         price: 11000,
+        image: "images/perfume.JPG"
     }
 ];
 
