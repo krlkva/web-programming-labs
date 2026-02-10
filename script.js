@@ -857,88 +857,140 @@ function updateTaskStats() {
 }
 
 /**
- * Инициализация drag-and-drop
+ * Инициализация drag-and-drop (исправленная версия)
  */
 function initDragAndDrop() {
     const taskList = document.getElementById('task-list');
     if (!taskList) return;
     
-    const taskItems = taskList.querySelectorAll('.task-item');
+    // Удаляем старые обработчики
+    const oldTaskList = taskList.cloneNode(false);
+    taskList.parentNode.replaceChild(oldTaskList, taskList);
+    oldTaskList.id = 'task-list';
+    oldTaskList.className = 'task-list';
     
-    taskItems.forEach(taskItem => {
-        taskItem.addEventListener('dragstart', handleDragStart);
-        taskItem.addEventListener('dragend', handleDragEnd);
+    // Переносим все элементы задач в новый список
+    const taskItems = document.querySelectorAll('.task-item');
+    taskItems.forEach(item => {
+        oldTaskList.appendChild(item);
     });
     
-    taskList.addEventListener('dragover', handleDragOver);
-    taskList.addEventListener('dragenter', handleDragEnter);
-    taskList.addEventListener('dragleave', handleDragLeave);
-    taskList.addEventListener('drop', handleDrop);
-}
-
-let draggedItem = null;
-
-function handleDragStart(e) {
-    draggedItem = this;
-    this.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', this.innerHTML);
-}
-
-function handleDragEnd() {
-    this.classList.remove('dragging');
-    const taskList = document.getElementById('task-list');
-    if (taskList) {
-        taskList.querySelectorAll('.task-item').forEach(item => {
+    const newTaskList = oldTaskList;
+    
+    // Инициализация переменных для drag-and-drop
+    let draggedItem = null;
+    let dragOverItem = null;
+    
+    // Функция для сброса стилей
+    function resetDragStyles() {
+        newTaskList.querySelectorAll('.task-item').forEach(item => {
             item.classList.remove('drag-over');
+            item.style.borderTop = '';
+            item.style.borderBottom = '';
         });
     }
-}
-
-function handleDragOver(e) {
-    e.preventDefault();
-    return false;
-}
-
-function handleDragEnter(e) {
-    e.preventDefault();
-    if (this !== draggedItem) {
-        this.classList.add('drag-over');
-    }
-}
-
-function handleDragLeave() {
-    this.classList.remove('drag-over');
-}
-
-function handleDrop(e) {
-    e.stopPropagation();
-    e.preventDefault();
     
-    if (draggedItem !== this) {
-        const taskList = document.getElementById('task-list');
-        if (!taskList) return;
+    // Обработчик начала перетаскивания
+    function handleDragStart(e) {
+        draggedItem = this;
+        this.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', this.id);
         
-        const items = Array.from(taskList.querySelectorAll('.task-item'));
+        // Визуальный эффект
+        setTimeout(() => {
+            this.style.opacity = '0.5';
+        }, 0);
+    }
+    
+    // Обработчик окончания перетаскивания
+    function handleDragEnd() {
+        this.classList.remove('dragging');
+        this.style.opacity = '1';
+        resetDragStyles();
+        draggedItem = null;
+        dragOverItem = null;
+    }
+    
+    // Обработчик наведения при перетаскивании
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
         
-        const draggedIndex = items.indexOf(draggedItem);
-        const targetIndex = items.indexOf(this);
+        const taskItem = e.target.closest('.task-item');
+        if (taskItem && taskItem !== draggedItem) {
+            dragOverItem = taskItem;
+            
+            // Сбрасываем стили у всех элементов
+            resetDragStyles();
+            
+            // Добавляем стиль элементу, над которым находимся
+            taskItem.classList.add('drag-over');
+            
+            // Определяем позицию для вставки
+            const rect = taskItem.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            
+            if (e.clientY < midpoint) {
+                taskItem.style.borderTop = '2px dashed #1a1a1a';
+            } else {
+                taskItem.style.borderBottom = '2px dashed #1a1a1a';
+            }
+        }
+    }
+    
+    // Обработчик выхода из элемента
+    function handleDragLeave(e) {
+        // Проверяем, действительно ли мы покинули элемент
+        const relatedTarget = e.relatedTarget;
+        const taskItem = e.target.closest('.task-item');
         
-        if (draggedIndex !== -1 && targetIndex !== -1) {
-            // Получаем ID задач из элементов
+        if (taskItem && (!relatedTarget || !taskItem.contains(relatedTarget))) {
+            taskItem.classList.remove('drag-over');
+            taskItem.style.borderTop = '';
+            taskItem.style.borderBottom = '';
+        }
+    }
+    
+    // Обработчик сброса элемента
+    function handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (!draggedItem) return;
+        
+        const taskItem = e.target.closest('.task-item');
+        if (taskItem && taskItem !== draggedItem) {
+            // Получаем ID задач
             const draggedId = parseInt(draggedItem.id.replace('task-', ''));
-            const targetId = parseInt(this.id.replace('task-', ''));
+            const targetId = parseInt(taskItem.id.replace('task-', ''));
             
-            // Находим задачи в массиве
-            const draggedTaskIndex = tasks.findIndex(task => task.id === draggedId);
-            const targetTaskIndex = tasks.findIndex(task => task.id === targetId);
+            // Находим индексы в массиве
+            const draggedIndex = tasks.findIndex(task => task.id === draggedId);
+            const targetIndex = tasks.findIndex(task => task.id === targetId);
             
-            if (draggedTaskIndex !== -1 && targetTaskIndex !== -1) {
-                // Перемещаем задачу в массиве
-                const [draggedTask] = tasks.splice(draggedTaskIndex, 1);
-                tasks.splice(targetTaskIndex, 0, draggedTask);
+            if (draggedIndex !== -1 && targetIndex !== -1) {
+                // Определяем позицию для вставки
+                const rect = taskItem.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
                 
-                // Сохраняем изменения в localStorage
+                // Удаляем задачу из текущей позиции
+                const [draggedTask] = tasks.splice(draggedIndex, 1);
+                
+                // Вычисляем новую позицию
+                let newIndex;
+                if (e.clientY < midpoint) {
+                    // Вставляем перед целевым элементом
+                    newIndex = targetIndex > draggedIndex ? targetIndex - 1 : targetIndex;
+                } else {
+                    // Вставляем после целевого элемента
+                    newIndex = targetIndex > draggedIndex ? targetIndex : targetIndex + 1;
+                }
+                
+                // Вставляем задачу на новую позицию
+                tasks.splice(newIndex, 0, draggedTask);
+                
+                // Сохраняем изменения
                 saveTasksToStorage();
                 
                 // Обновляем отображение
@@ -948,10 +1000,26 @@ function handleDrop(e) {
                 showNotification('Порядок задач изменен', 'info');
             }
         }
+        
+        resetDragStyles();
+        draggedItem = null;
+        dragOverItem = null;
     }
     
-    this.classList.remove('drag-over');
-    return false;
+    // Добавляем обработчики ко всем элементам задач
+    newTaskList.querySelectorAll('.task-item').forEach(item => {
+        item.draggable = true;
+        
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragend', handleDragEnd);
+        item.addEventListener('dragover', handleDragOver);
+        item.addEventListener('dragleave', handleDragLeave);
+        item.addEventListener('drop', handleDrop);
+    });
+    
+    // Добавляем обработчики к самому списку
+    newTaskList.addEventListener('dragover', handleDragOver);
+    newTaskList.addEventListener('drop', handleDrop);
 }
 
 /**
