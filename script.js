@@ -313,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Подвал
   const footer_text = document.createElement('span');
-  footer_text.textContent = 'ToDo List 2025';
+  footer_text.textContent = 'ToDo List 2026';
   footer.appendChild(footer_text);
 
   // Основной контент
