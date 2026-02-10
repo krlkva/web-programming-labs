@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', function() {
   page.appendChild(main);
   page.appendChild(footer);
 
-  // Шапка - УБРАЛИ ГИТХАБ
+  // Шапка - ТОЛЬКО ToDo List
   const header_nav = document.createElement('nav');
   header.appendChild(header_nav);
   const header_nav_list = document.createElement('ul');
@@ -302,33 +302,26 @@ document.addEventListener('DOMContentLoaded', function() {
   header_nav_list.appendChild(header_logo);
   const header_logo_link = document.createElement('a');
   header_logo_link.href = '#';
+  header_logo_link.style.textDecoration = 'none';
   header_logo.appendChild(header_logo_link);
-  const header_logo_long = document.createElement('h1');
-  header_logo_long.textContent = "Минималистичный ToDo List";
-  header_logo_long.classList.add('site-name-long');
-  header_logo_link.appendChild(header_logo_long);
-  const header_logo_middle = document.createElement('h1');
-  header_logo_middle.textContent = "Минималистичный ToDo List";
-  header_logo_middle.classList.add('site-name-middle');
-  header_logo_link.appendChild(header_logo_middle);
-  const header_logo_short = document.createElement('h1');
-  header_logo_short.textContent = "ToDo List";
-  header_logo_short.classList.add('site-name-short');
-  header_logo_link.appendChild(header_logo_short);
-
-  // УБРАЛИ ЭЛЕМЕНТ ГИТХАБА
   
+  // УПРОЩЕННЫЙ ЗАГОЛОВОК - ТОЛЬКО ToDo List
+  const header_title = document.createElement('h1');
+  header_title.textContent = "ToDo List";
+  header_title.className = 'site-name';
+  header_logo_link.appendChild(header_title);
+
   // Подвал
   const footer_text = document.createElement('span');
   footer_text.textContent = 'ToDo List 2025';
   footer.appendChild(footer_text);
 
-  // Основной контент - ИЗМЕНИЛИ ПОРЯДОК
+  // Основной контент
   const main_container = document.createElement('div');
   main_container.classList.add('main-container');
   main.appendChild(main_container);
 
-  // СНАЧАЛА ФОРМА ДОБАВЛЕНИЯ ЗАДАЧИ (ПЕРЕМЕСТИЛИ НАВЕРХ)
+  // СНАЧАЛА ФОРМА ДОБАВЛЕНИЯ ЗАДАЧИ
   const add_task_window = document.createElement('section');
   add_task_window.classList.add('add-task-window');
   main_container.appendChild(add_task_window);
@@ -447,7 +440,7 @@ document.addEventListener('DOMContentLoaded', function() {
   task_sort_id_text.textContent = 'по ID';
   task_sort_id.appendChild(task_sort_id_text);
 
-  // Фильтры - СДЕЛАЛИ КОМПАКТНЕЕ
+  // Фильтры
   const task_filter = document.createElement('fieldset');
   task_filter.classList.add('task-settings__filter');
   task_settings.appendChild(task_filter);
@@ -520,7 +513,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Список задач - ГРИД РАСКЛАДКА
+  // Список задач
   const task_list = document.createElement('ul');
   task_list.classList.add('task-list');
   task_window.appendChild(task_list);
