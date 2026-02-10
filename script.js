@@ -64,7 +64,7 @@ function createHeader(container) {
     
     const appSubtitle = document.createElement('p');
     appSubtitle.className = 'app-subtitle';
-    appSubtitle.textContent = 'Управляйте вашими задачами эффективно';
+    appSubtitle.textContent = ' эффективно';
     
     logoSection.appendChild(logoIcon);
     logoSection.appendChild(appTitle);
