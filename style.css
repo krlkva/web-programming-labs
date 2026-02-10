@@ -453,20 +453,20 @@ main {
     border-color: #d32f2f;
 }
 
-/* НОВЫЕ ЦВЕТА ДЛЯ СТАТУСОВ - ИЗМЕНИЛИ ЦВЕТА */
+/* Цвета статусов - ВСЯ РАМКА ЦВЕТНАЯ */
 .task-container_new {
-    border: 2px solid #ffcdd2; /* Светло-красная рамка */
-    border-left: 4px solid #f44336; /* Ярко-красная левая граница */
+    border: 2px solid #ffcdd2 !important; /* Светло-красная вся рамка */
+    border-left: 4px solid #f44336 !important; /* Ярко-красная левая граница */
 }
 
 .task-container_inprogress {
-    border: 2px solid #c8e6c9; /* Светло-зеленая рамка */
-    border-left: 4px solid #4caf50; /* Зеленая левая граница */
+    border: 2px solid #fff9c4 !important; /* Светло-желтая вся рамка */
+    border-left: 4px solid #ffc107 !important; /* Желтая левая граница */
 }
 
 .task-container_done {
-    border: 2px solid #a5d6a7; /* Зеленая рамка */
-    border-left: 4px solid #2e7d32; /* Темно-зеленая левая граница */
+    border: 2px solid #c8e6c9 !important; /* Светло-зеленая вся рамка */
+    border-left: 4px solid #4caf50 !important; /* Зеленая левая граница */
 }
 
 .task-status_new .task__info span:first-child {
@@ -474,7 +474,7 @@ main {
 }
 
 .task-status_inprogress .task__info span:first-child {
-    color: #4caf50; /* Зеленый цвет для названия */
+    color: #ff8f00; /* Оранжево-желтый цвет для названия */
 }
 
 .task-status_done .task__info span:first-child {
@@ -483,7 +483,7 @@ main {
     opacity: 0.8;
 }
 
-/* Также меняем цвет даты в зависимости от статуса */
+/* Цвета дат в зависимости от статуса */
 .task-status_new .task__info span:last-child {
     background-color: #ffebee; /* Очень светлый красный */
     border-color: #ffcdd2; /* Светло-красный */
@@ -491,14 +491,14 @@ main {
 }
 
 .task-status_inprogress .task__info span:last-child {
-    background-color: #e8f5e9; /* Очень светлый зеленый */
-    border-color: #c8e6c9; /* Светло-зеленый */
-    color: #388e3c; /* Темно-зеленый */
+    background-color: #fffde7; /* Очень светлый желтый */
+    border-color: #fff9c4; /* Светло-желтый */
+    color: #ff8f00; /* Оранжево-желтый */
 }
 
 .task-status_done .task__info span:last-child {
     background-color: #e8f5e9; /* Очень светлый зеленый */
-    border-color: #a5d6a7; /* Зеленый */
+    border-color: #c8e6c9; /* Зеленый */
     color: #2e7d32; /* Темно-зеленый */
 }
 
