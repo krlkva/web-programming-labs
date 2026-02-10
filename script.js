@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', function() {
   page.appendChild(main);
   page.appendChild(footer);
 
-  // Шапка
+  // Шапка - УБРАЛИ ГИТХАБ
   const header_nav = document.createElement('nav');
   header.appendChild(header_nav);
   const header_nav_list = document.createElement('ul');
@@ -316,27 +316,69 @@ document.addEventListener('DOMContentLoaded', function() {
   header_logo_short.classList.add('site-name-short');
   header_logo_link.appendChild(header_logo_short);
 
-  const header_git = document.createElement('li');
-  header_nav_list.appendChild(header_git);
-  const header_git_link = document.createElement('a');
-  header_git_link.href = '#';
-  header_git.appendChild(header_git_link);
-  const header_git_icon = document.createElement('i');
-  header_git_icon.className = 'fab fa-github';
-  header_git_icon.style.fontSize = '24px';
-  header_git_icon.style.color = '#1a1a1a';
-  header_git_link.appendChild(header_git_icon);
-
+  // УБРАЛИ ЭЛЕМЕНТ ГИТХАБА
+  
   // Подвал
   const footer_text = document.createElement('span');
   footer_text.textContent = 'ToDo List 2025';
   footer.appendChild(footer_text);
 
-  // Основной контент
+  // Основной контент - ИЗМЕНИЛИ ПОРЯДОК
   const main_container = document.createElement('div');
   main_container.classList.add('main-container');
   main.appendChild(main_container);
 
+  // СНАЧАЛА ФОРМА ДОБАВЛЕНИЯ ЗАДАЧИ (ПЕРЕМЕСТИЛИ НАВЕРХ)
+  const add_task_window = document.createElement('section');
+  add_task_window.classList.add('add-task-window');
+  main_container.appendChild(add_task_window);
+
+  const task_form = document.createElement('form');
+  task_form.classList.add('task-form');
+  add_task_window.appendChild(task_form);
+
+  const task_form_heading = document.createElement('h2');
+  task_form_heading.textContent = 'Добавить новую задачу';
+  task_form.appendChild(task_form_heading);
+
+  const task_form_name = document.createElement('div');
+  task_form.appendChild(task_form_name);
+  const task_form_name_label = document.createElement('label');
+  task_form_name_label.textContent = 'Название:';
+  task_form_name_label.htmlFor = 'task-name';
+  task_form_name.appendChild(task_form_name_label);
+  const task_form_name_input = document.createElement('input');
+  task_form_name_input.type = 'text';
+  task_form_name_input.name = 'task-name';
+  task_form_name_input.required = true;
+  task_form_name_input.placeholder = 'Введите название задачи';
+  task_form_name.appendChild(task_form_name_input);
+
+  const task_form_date = document.createElement('div');
+  task_form.appendChild(task_form_date);
+  const task_form_date_label = document.createElement('label');
+  task_form_date_label.textContent = 'Дата:';
+  task_form_date_label.htmlFor = 'task-date';
+  task_form_date.appendChild(task_form_date_label);
+  const task_form_date_input = document.createElement('input');
+  task_form_date_input.type = 'date';
+  task_form_date_input.name = 'task-date';
+  task_form_date_input.required = true;
+  task_form_date.appendChild(task_form_date_input);
+
+  const task_form_submit = document.createElement('input');
+  task_form_submit.type = 'submit';
+  task_form_submit.value = 'Добавить задачу';
+  task_form.appendChild(task_form_submit);
+  
+  task_form.addEventListener('submit', (event) => {
+    event.preventDefault(); 
+    addTask();
+  });
+
+  window.task_form = task_form;
+
+  // ПОТОМ ОКНО ЗАДАЧ
   const task_window = document.createElement('section');
   task_window.classList.add('task-window');
   main_container.appendChild(task_window);
@@ -405,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function() {
   task_sort_id_text.textContent = 'по ID';
   task_sort_id.appendChild(task_sort_id_text);
 
-  // Фильтры
+  // Фильтры - СДЕЛАЛИ КОМПАКТНЕЕ
   const task_filter = document.createElement('fieldset');
   task_filter.classList.add('task-settings__filter');
   task_settings.appendChild(task_filter);
@@ -478,59 +520,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Список задач
+  // Список задач - ГРИД РАСКЛАДКА
   const task_list = document.createElement('ul');
   task_list.classList.add('task-list');
   task_window.appendChild(task_list);
-
-  // Форма добавления задачи
-  const add_task_window = document.createElement('section');
-  add_task_window.classList.add('add-task-window');
-  main_container.appendChild(add_task_window);
-
-  const task_form = document.createElement('form');
-  task_form.classList.add('task-form');
-  add_task_window.appendChild(task_form);
-
-  const task_form_heading = document.createElement('h2');
-  task_form_heading.textContent = 'Добавить новую задачу';
-  task_form.appendChild(task_form_heading);
-
-  const task_form_name = document.createElement('div');
-  task_form.appendChild(task_form_name);
-  const task_form_name_label = document.createElement('label');
-  task_form_name_label.textContent = 'Название:';
-  task_form_name_label.htmlFor = 'task-name';
-  task_form_name.appendChild(task_form_name_label);
-  const task_form_name_input = document.createElement('input');
-  task_form_name_input.type = 'text';
-  task_form_name_input.name = 'task-name';
-  task_form_name_input.required = true;
-  task_form_name.appendChild(task_form_name_input);
-
-  const task_form_date = document.createElement('div');
-  task_form.appendChild(task_form_date);
-  const task_form_date_label = document.createElement('label');
-  task_form_date_label.textContent = 'Дата:';
-  task_form_date_label.htmlFor = 'task-date';
-  task_form_date.appendChild(task_form_date_label);
-  const task_form_date_input = document.createElement('input');
-  task_form_date_input.type = 'date';
-  task_form_date_input.name = 'task-date';
-  task_form_date_input.required = true;
-  task_form_date.appendChild(task_form_date_input);
-
-  const task_form_submit = document.createElement('input');
-  task_form_submit.type = 'submit';
-  task_form_submit.value = 'Добавить';
-  task_form.appendChild(task_form_submit);
-  
-  task_form.addEventListener('submit', (event) => {
-    event.preventDefault(); 
-    addTask();
-  });
-
-  window.task_form = task_form;
 
   // Загрузка из localStorage
   if (localStorage.getItem('tasklist-test')) {
