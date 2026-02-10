@@ -21,13 +21,23 @@ body {
     min-height: calc(100vh - 40px);
     display: flex;
     flex-direction: column;
+    gap: 30px;
 }
 
 /* Заголовок в стиле KRLKVA.Beauty */
 .app-header {
-    margin-bottom: 40px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 10px;
+    padding: 25px 30px;
+    border: 2px solid #1a1a1a;
+    border-radius: 12px;
+    background-color: white;
+}
+
+.header-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
 }
 
 .logo-section {
@@ -55,22 +65,25 @@ body {
 /* Основной контент - двухколоночный макет */
 .main-content {
     display: flex;
-    gap: 40px;
+    gap: 30px;
     flex: 1;
 }
 
 /* Боковая панель - стили как в каталоге */
 .sidebar {
     flex: 0 0 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
 }
 
-/* Форма добавления задачи - чистый минимализм */
+/* Форма добавления задачи - чистый минимализм с черными рамками */
 .add-task-form, .filters-panel {
-    background: transparent;
-    border: 1px solid #e0e0e0;
-    border-radius: 0;
-    padding: 0;
-    margin-bottom: 30px;
+    background: white;
+    border: 3px solid #1a1a1a;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 0;
 }
 
 .form-title, .filters-title {
@@ -118,21 +131,21 @@ body {
     font-family: inherit;
 }
 
-/* Кнопки - минималистичные */
+/* Кнопки - минималистичные с черными рамками */
 .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     padding: 12px 24px;
-    border: 1px solid #1a1a1a;
+    border: 2px solid #1a1a1a;
     background: transparent;
     color: #1a1a1a;
     font-size: 14px;
     font-weight: 400;
     cursor: pointer;
     transition: all 0.2s;
-    border-radius: 0;
+    border-radius: 8px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -155,13 +168,17 @@ body {
 /* Область задач */
 .task-area {
     flex: 1;
+    background: white;
+    border: 2px solid #1a1a1a;
+    border-radius: 12px;
+    padding: 25px;
 }
 
 .task-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
+    margin-bottom: 25px;
     padding-bottom: 15px;
     border-bottom: 1px solid #e0e0e0;
 }
@@ -178,7 +195,7 @@ body {
     color: #666;
 }
 
-/* Список задач - минималистичный стиль */
+/* Список задач - минималистичный стил*/
 .task-list-container {
     background: transparent;
     border: none;
@@ -191,9 +208,9 @@ body {
 
 /* Элемент задачи */
 .task-item {
-    background: transparent;
-    border: 1px solid #e0e0e0;
-    border-radius: 0;
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
     padding: 20px;
     margin-bottom: 15px;
     transition: all 0.2s;
@@ -203,16 +220,19 @@ body {
 
 .task-item:hover {
     border-color: #1a1a1a;
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
 }
 
 .task-item.dragging {
     opacity: 0.5;
     border-style: dashed;
+    border-color: #1a1a1a;
 }
 
 .task-item.completed {
-    opacity: 0.6;
+    opacity: 0.7;
+    background-color: #f9f9f9;
 }
 
 .task-header-row {
@@ -253,6 +273,10 @@ body {
     font-size: 14px;
     color: #666;
     white-space: nowrap;
+    background-color: #f5f5f5;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
 }
 
 .task-description {
@@ -271,16 +295,19 @@ body {
 
 .action-btn {
     background: none;
-    border: none;
+    border: 1px solid #e0e0e0;
     cursor: pointer;
-    font-size: 16px;
-    padding: 4px;
+    font-size: 14px;
+    padding: 6px 10px;
+    border-radius: 4px;
     color: #666;
-    transition: color 0.2s;
+    transition: all 0.2s;
 }
 
 .action-btn:hover {
     color: #1a1a1a;
+    border-color: #1a1a1a;
+    background-color: #f5f5f5;
 }
 
 /* Сообщение при пустом списке */
@@ -289,6 +316,9 @@ body {
     padding: 60px 20px;
     color: #999;
     display: none;
+    border: 2px dashed #e0e0e0;
+    border-radius: 8px;
+    margin-top: 20px;
 }
 
 .empty-message i {
@@ -312,9 +342,11 @@ body {
 
 /* Подвал */
 .app-footer {
-    margin-top: 60px;
-    padding-top: 20px;
-    border-top: 1px solid #e0e0e0;
+    margin-top: 20px;
+    padding: 20px 30px;
+    border: 2px solid #1a1a1a;
+    border-radius: 12px;
+    background-color: white;
     color: #666;
 }
 
@@ -334,21 +366,27 @@ body {
 /* Приоритеты задач - минималистичные индикаторы */
 .task-item.priority-high .task-date {
     color: #d32f2f;
+    background-color: #ffebee;
+    border-color: #ffcdd2;
 }
 
 .task-item.priority-medium .task-date {
     color: #f57c00;
+    background-color: #fff3e0;
+    border-color: #ffe0b2;
 }
 
 .task-item.priority-low .task-date {
     color: #388e3c;
+    background-color: #e8f5e9;
+    border-color: #c8e6c9;
 }
 
 /* Адаптивность */
 @media (max-width: 768px) {
     .main-content {
         flex-direction: column;
-        gap: 30px;
+        gap: 20px;
     }
     
     .sidebar {
@@ -357,7 +395,8 @@ body {
     }
     
     .app-header {
-        margin-bottom: 30px;
+        margin-bottom: 0;
+        padding: 20px;
     }
     
     .task-header {
@@ -371,11 +410,20 @@ body {
         gap: 10px;
         text-align: center;
     }
+    
+    .add-task-form, .filters-panel, .task-area, .app-footer, .app-header {
+        border-width: 2px;
+        padding: 20px;
+    }
 }
 
 @media (max-width: 480px) {
     body {
         padding: 15px;
+    }
+    
+    .app-container {
+        gap: 20px;
     }
     
     .app-title {
@@ -390,6 +438,11 @@ body {
         flex-direction: column;
         align-items: flex-start;
         gap: 10px;
+    }
+    
+    .add-task-form, .filters-panel, .task-area, .app-footer, .app-header {
+        border-radius: 10px;
+        padding: 15px;
     }
 }
 
@@ -409,11 +462,12 @@ body {
 }
 
 .modal-content {
-    background-color: #fafafa;
+    background-color: white;
     padding: 30px;
     width: 90%;
     max-width: 400px;
-    border: 1px solid #e0e0e0;
+    border: 3px solid #1a1a1a;
+    border-radius: 12px;
 }
 
 .modal-content h3 {
@@ -451,7 +505,8 @@ body {
     background-color: #1a1a1a;
     color: white;
     font-size: 14px;
-    border: 1px solid #1a1a1a;
+    border: 2px solid #1a1a1a;
+    border-radius: 8px;
     z-index: 1000;
     animation: slideIn 0.3s ease-out;
 }
@@ -461,6 +516,97 @@ body {
     to { transform: translateX(0); opacity: 1; }
 }
 
+@keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+
+/* Дополнительные стили для drag-and-drop */
+.task-item.drag-over {
+    border-color: #1a1a1a;
+    background-color: #f8f8f8;
+}
+
+.task-item.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Курсор при перетаскивании */
+.task-item[draggable="true"] {
+    cursor: grab;
+}
+
+.task-item[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+/* Разделители для drop зон */
+.drop-indicator {
+    height: 2px;
+    background-color: #1a1a1a;
+    margin: 5px 0;
+    border-radius: 1px;
+}
+
+/* Улучшенные стили для боковой панели */
+.add-task-form {
+    border-width: 3px;
+}
+
+.filters-panel {
+    border-width: 3px;
+}
+
+/* Отступы между элементами внутри форм */
+.add-task-form > *:not(:last-child),
+.filters-panel > *:not(:last-child) {
+    margin-bottom: 15px;
+}
+
+/* Стили для выпадающих списков */
+.filter-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0 center;
+    background-size: 16px;
+    padding-right: 30px;
+}
+
+/* Эффекты при фокусе */
+.task-input:focus, .task-textarea:focus, .filter-select:focus {
+    border-bottom-width: 2px;
+}
+
+/* Состояние кнопок при наведении */
+.btn:active {
+    transform: translateY(1px);
+}
+
+/* Улучшенный внешний вид чекбоксов */
+.task-checkbox {
+    min-width: 18px;
+    min-height: 18px;
+    border-radius: 3px;
+}
+
+/* Анимация появления задач */
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.task-item {
+    animation: slideUp 0.3s ease-out;
+}
 @keyframes slideOut {
     from { transform: translateX(0); opacity: 1; }
     to { transform: translateX(100%); opacity: 0; }
