@@ -128,7 +128,7 @@ function createSidebar() {
     
     const descriptionLabel = document.createElement('label');
     descriptionLabel.className = 'input-label';
-    descriptionLabel.textContent = 'Описание (необязательно)';
+    descriptionLabel.textContent = 'Описание';
     descriptionLabel.htmlFor = 'task-description';
     
     const descriptionInput = document.createElement('textarea');
