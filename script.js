@@ -1,4 +1,5 @@
-// ========== VARIABLES ==========
+//// VARIABLES
+
 const PERIODS = {0: 'night', 1: 'morning', 2: 'afternoon', 3: 'evening'};
 const WEEKDAYS = {0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday'};
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -12,380 +13,558 @@ const TMPR_COLORS = {
   80: '#b0d7ff',
   70: '#b0c0ff',
   0: '#9e9aff'
-};
-const NDAYS = 3; // сегодня + 2 дня
-
+}
+const NDAYS = 3;
+let mapCountries = []
 let mapLocations = {
-  'москва': [55.763263, 37.613748],
-  'санкт-петербург': [59.938886, 30.313838],
-  'нью-йорк': [40.7128, -74.0060],
-  'лондон': [51.5074, -0.1278],
-  'париж': [48.8566, 2.3522],
-  'токио': [35.6895, 139.6917],
-  'берлин': [52.5200, 13.4050],
-  'пекин': [39.9042, 116.4074]
-};
+  'St Petersburg': [59.938886, 30.313838],
+  'Veliky Novgorod': [58.523342, 31.267735],
+  'Moscow': [55.763263, 37.613748],
+  'Yekaterinburg': [56.882507, 60.543053],
+  'Novosibirsk': [55.055589, 82.910959],
+}
+let currMapLocations = {};
+let locations = [];
+let curr_location = '';
+let curr_target = document.getElementsByClassName('current-location__geolocation')[0];
 
-let locations = []; // массив дополнительных городов
-let curr_location = null; // текущее местоположение
+//// HELPERS
 
-// DOM элементы
-const weatherDisplay = document.getElementById('weatherDisplay');
-const citySelect = document.getElementById('citySelect');
-const refreshBtn = document.getElementById('refreshBtn');
-const cityInput = document.getElementById('cityInput');
-const addCityBtn = document.getElementById('addCityBtn');
-const validationMessage = document.getElementById('validationMessage');
-const cityChips = document.getElementById('cityChips');
-const globalMessage = document.getElementById('globalMessage');
-
-// ========== HELPERS ==========
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function sleep(milliseconds) {
+  const date = Date.now();
+  let currentDate = null;
+  do {
+    currentDate = Date.now();
+  } while (currentDate - date < milliseconds);
 }
 
-function round(number, precision = 1) {
-  return Math.round(number * Math.pow(10, precision)) / Math.pow(10, precision);
+
+function round(number, precision = 1){
+  return Math.round(
+    number * Math.pow(10, precision)
+  ) / Math.pow(10, precision);
 }
+
 
 function capitalize(val) {
   return String(val).charAt(0).toUpperCase() + String(val).slice(1);
 }
 
-function getListedPlaces() {
-  let places = [];
-  if (curr_location) places.push(curr_location.place.toLowerCase());
-  for (let loc of locations) {
-    places.push(loc.place.toLowerCase());
+
+function getListedPlaces(){
+  let listedPlaces = [];
+  for (let location of locations){
+    listedPlaces.unshift(location.place);
   }
-  return places;
+  return listedPlaces;
 }
 
-// ========== LOCALSTORAGE ==========
-function saveToLocalStorage() {
-  const data = {
-    curr_location: curr_location ? {
-      place: curr_location.place,
-      latitude: curr_location.latitude,
-      longitude: curr_location.longitude,
-      isUserLocation: curr_location.isUserLocation || false
-    } : null,
-    locations: locations.map(l => ({
-      place: l.place,
-      latitude: l.latitude,
-      longitude: l.longitude
-    }))
-  };
-  localStorage.setItem('weatherAppData', JSON.stringify(data));
-}
-
-function loadFromLocalStorage() {
-  const saved = localStorage.getItem('weatherAppData');
-  if (saved) {
-    try {
-      const data = JSON.parse(saved);
-      if (data.curr_location) {
-        curr_location = {
-          ...data.curr_location,
-          weather: null
-        };
-      }
-      if (data.locations) {
-        locations = data.locations.map(l => ({ ...l, weather: null }));
-      }
-      return true;
-    } catch (e) {
-      console.error('Error loading from localStorage', e);
-    }
-  }
-  return false;
-}
-
-// ========== GEOLOCATION ==========
-function requestGeolocation() {
-  if (!navigator.geolocation) {
-    showManualLocationForm();
-    return;
-  }
-  
-  globalMessage.innerHTML = '<div class="loading"><div class="spinner"></div> Запрашиваем геопозицию...</div>';
-  
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      curr_location = {
-        place: 'Текущее местоположение',
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        isUserLocation: true,
-        weather: null
-      };
-      
-      await refreshWeatherData();
-      updateUI();
-      saveToLocalStorage();
-      globalMessage.innerHTML = '';
-    },
-    (error) => {
-      globalMessage.innerHTML = '<div class="error-message">📍 Доступ к геолокации отклонён. Введите город вручную.</div>';
-      showManualLocationForm();
-    }
-  );
-}
-
-function showManualLocationForm() {
-  if (!curr_location) {
-    curr_location = {
-      place: 'Нью-Йорк',
-      latitude: 40.7128,
-      longitude: -74.0060,
-      isUserLocation: false,
-      weather: null
-    };
-  }
-  refreshWeatherData().then(() => {
-    updateUI();
-    saveToLocalStorage();
+function animatePopup(popup){
+  let animationSpeed = 250;
+  popup.classList.remove('hidden');
+  popup.animate(
+  [
+    { opacity: 0, transform: 'translateY(-2rem)' },
+    { opacity: 1, transform: 'translateY(0)' },
+  ], 
+  {
+    duration: animationSpeed,
+    iterations: 1,
   });
 }
 
-// ========== WEATHER API ==========
-async function getWeather(latitude, longitude) {
+//// START
+
+if (localStorage.getItem('locations')){
+  locations = JSON.parse(localStorage.getItem('locations'));
+}
+
+
+async function setupPage(){
+  getCountries();
+  populateElemLocations();
+  refreshWeatherData();
+}
+
+
+//// LOGIC
+
+// Country and city selects
+
+let countriesLists = document.getElementsByClassName('datalist-countries');
+
+for (let i = 0; i < countriesLists.length; i++){
+  let list = countriesLists[i];
+  let mode = 'default';
+  if (i == 0){
+    mode = 'curr';
+  }
+  let respectiveCity = list.parentNode.parentNode.getElementsByClassName('add-location__city')[0];
+  respectiveCity.classList.add('hidden');
+  let input = list.parentNode.getElementsByTagName('input')[0];
+  input.value = '';
+  let select = list.getElementsByTagName('select')[0];
+  select.addEventListener('change', (event) => {
+    processNewCountry(event, list, mode);
+  })
+  let set_btn = list.parentNode.getElementsByClassName('set-country-btn')[0];
+  set_btn.addEventListener('click', (event) => {
+    processNewCountry(event, list, mode)
+  });
+}
+
+function populateCountriesLists(){
+  let countriesLists = document.getElementsByClassName('datalist-countries');
+  for (let list of countriesLists){
+    let selectList = list.getElementsByTagName('select')[0];
+    selectList.textContent = '';
+    for (let [place, id] of Object.entries(mapCountries)){
+      let elemPlace = document.createElement('option');
+      elemPlace.value = capitalize(place);
+      selectList.appendChild(elemPlace);
+    }
+  }
+}
+
+function processNewCountry(event, list, mode='default'){
+  let country_select = list.parentNode.getElementsByTagName('input')[0];
+  let error_popup = document.getElementsByClassName('invalid-country-input')[0];
+  let error_city_popup = document.getElementsByClassName('invalid-input')[0];
+  let respectiveCity = list.parentNode.parentNode.getElementsByClassName('add-location__city')[0];
+  respectiveCity.classList.add('hidden');
+  if (country_select.value.toLowerCase() in mapCountries){
+    error_popup.classList.add('hidden');
+    respectiveCity.classList.remove('hidden');
+    fetchCities(mapCountries[country_select.value.toLowerCase()], mode)
+  }
+  else{
+    error_popup.classList.remove('hidden');
+    error_city_popup.classList.add('hidden');
+    animatePopup(error_popup);
+  }
+}
+
+async function getCountries(){
+  const requestURL =
+    "https://plida.github.io/cities-info/countries.json";
+  const request = new Request(requestURL);
+
+  const response = await fetch(request);
+  const cities = await response.json();
+  
+  for (let country of cities){
+    mapCountries[country.name.toLowerCase()] = country.id;
+  }
+
+  populateCountriesLists();
+}
+
+
+let citiesLists = document.getElementsByClassName('datalist-cities');
+for (let i = 0; i < citiesLists.length; i++){
+  let input = citiesLists[i].parentNode.getElementsByTagName('input')[0];
+  input.value = '';
+  let select = citiesLists[i].getElementsByTagName('select')[0]; 
+  select.addEventListener('change', () => {
+      if (i > 1){
+        let mode = 'default'; 
+      }
+      else{
+        let mode = 'curr';
+      }
+      processNewCity(citiesLists[i], mode);
+    }
+  )
+}
+
+function populateCitiesLists(){
+  let citiesLists = document.getElementsByClassName('datalist-cities');
+  for (let i = 0; i < citiesLists.length; i++){
+    let list = citiesLists[i];
+    let selectList = list.getElementsByTagName('select')[0];
+    selectList.textContent = '';
+    if (i == 0){
+      for (let [place, coords] of Object.entries(currMapLocations)){
+        let elemPlace = document.createElement('option');
+        elemPlace.value = capitalize(place);
+        selectList.appendChild(elemPlace);
+    }}
+    else{
+      for (let [place, coords] of Object.entries(mapLocations)){
+        let elemPlace = document.createElement('option');
+        elemPlace.value = capitalize(place);
+        selectList.appendChild(elemPlace);
+    }
+    }
+  }
+}
+
+async function fetchCities(country_id, mode) {
+  const requestURL =
+    "https://plida.github.io/cities-info/cities.json";
+  const request = new Request(requestURL);
+
+  const response = await fetch(request);
+  const cities = await response.json();
+  
+  if (mode == 'curr'){
+    currMapLocations = {};
+    for (let city of cities){
+      if (city.country_id == country_id){
+        currMapLocations[city.name.toLowerCase()] = [city.latitude, city.longitude];
+      }
+    }
+  }
+  else{
+    mapLocations = {};
+    for (let city of cities){
+      if (city.country_id == country_id){
+        mapLocations[city.name.toLowerCase()] = [city.latitude, city.longitude];
+      }
+    }
+  }
+
+  populateCitiesLists();
+}
+
+function processNewCity(list, mode = 'default'){
+  let city_select = list.parentNode.getElementsByTagName('input')[0];
+  let error_popup = document.getElementsByClassName('invalid-input')[0];
+  let repeat_popup = document.getElementsByClassName('repeat-input')[0];
+
+  repeat_popup.classList.add('hidden');
+  error_popup.classList.add('hidden');
+  let value = city_select.value.toLowerCase();
+  if (getListedPlaces().includes(value) && mode == 'default'){
+    repeat_popup.classList.remove('hidden');
+    animatePopup(repeat_popup);
+    return;
+  }
+
+  if (mode == 'curr' && value in currMapLocations){
+    addCurrentLocation(currMapLocations[value][0], currMapLocations[value][1]);
+  }
+  else if (mode == 'default' && value in mapLocations){
+    createLocationEntry(value)
+  }
+  else{
+    error_popup.classList.remove('hidden');
+    animatePopup(error_popup);
+  }
+}
+
+
+let add_current_btns = document.getElementsByClassName('add-current-btn');
+for (let btn of add_current_btns){
+  let list = btn.parentNode.getElementsByTagName('datalist')[0];
+  let add_select = btn.parentNode.getElementsByTagName('input')[0];
+  add_select.value = "";
+  btn.addEventListener('click', () => {
+    curr_target = document.getElementsByClassName('current-location__manual')[0];
+    processNewCity(list, 'curr');
+    curr_loc_man_ch.classList.add('hidden');
+    curr_loc_man.classList.remove('hidden');
+  });
+}
+
+let add_city_btns = document.getElementsByClassName('add-city-btn');
+for (let btn of add_city_btns){
+  let list = btn.parentNode.getElementsByTagName('datalist')[0];
+  btn.addEventListener('click', () => {processNewCity(list, 'default')});
+}
+
+// Weather API
+
+async function getWeather(latitude, longitude){
   const apiURL = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m&timezone=auto`;
   try {
     let response = await fetch(apiURL);
     if (!response.ok) {
       throw new Error(`Response status: ${response.status}`);
     }
-    let data = await response.json();
-    return parseWeatherData(data);
+    let days = await response.json();
+    return parseWeatherData(days)
   } catch (error) {
     console.error(error.message);
     return -1;
   }
 }
 
-function parseWeatherData(data) {
+
+function parseWeatherData(data){
   let days = [];
   let temperatures = data.hourly.temperature_2m;
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 7; i++){
     let periods = [];
-    for (let k = 0; k < 4; k++) {
+    for (let k = 0; k < 4; k++){
       let avgTemp = 0;
       let minTemp = 1000;
       let maxTemp = -1000;
-      for (let j = 24 * i + (6 * k); j < 24 * i + (6 * (k + 1)); j++) {
-        if (j >= temperatures.length) break;
+      for (let j = 24 * i + (6 * k); j < 24 * (i) + (6 * (k+1)); j++){
         let roundTemp = round(temperatures[j], 1);
-        avgTemp += roundTemp;
-        if (roundTemp < minTemp) minTemp = roundTemp;
-        if (roundTemp > maxTemp) maxTemp = roundTemp;
+        avgTemp += roundTemp; 
+        if (roundTemp < minTemp){
+          minTemp = roundTemp;
+        }
+        if (roundTemp > maxTemp){
+          maxTemp = roundTemp;
+        }
       }
       avgTemp = round(avgTemp / 6, 1);
       periods.push([avgTemp, minTemp, maxTemp]);
     }
-    days.push([data.hourly.time[i * 24], periods]);
+    days.push([data.hourly.time[i*24], periods]);
   }
   return days;
 }
 
-async function refreshWeatherData() {
-  globalMessage.innerHTML = '<div class="loading"><div class="spinner"></div> Обновляем данные...</div>';
-  
-  if (curr_location) {
+
+const refresh_btn = document.getElementById('refresh-btn');
+refresh_btn.addEventListener('click', () =>{
+  refreshWeatherData();
+})
+
+async function refreshWeatherData(){
+  let elemLocationsList = document.getElementsByClassName('location-data');
+  let elemLocList = curr_target.getElementsByTagName('ul')[0];
+  currentWeather.classList.add('hidden');
+  elemLocList.textContent = 'loading...';
+  if (curr_location != ""){
     let result = await getWeather(curr_location.latitude, curr_location.longitude);
-    curr_location.weather = (result === -1) ? null : result;
-    await sleep(100);
-  }
-  
-  for (let i = 0; i < locations.length; i++) {
-    let result = await getWeather(locations[i].latitude, locations[i].longitude);
-    locations[i].weather = (result === -1) ? null : result;
-    await sleep(100);
-  }
-  
-  globalMessage.innerHTML = '';
-  saveToLocalStorage();
-  updateUI();
-}
-
-// ========== UI RENDERING ==========
-function updateUI() {
-  // Обновляем селект
-  let options = '';
-  if (curr_location) {
-    options += `<option value="current">${curr_location.isUserLocation ? '📍 Текущее местоположение' : curr_location.place}</option>`;
-  }
-  for (let i = 0; i < locations.length; i++) {
-    options += `<option value="loc-${i}">${locations[i].place}</option>`;
-  }
-  citySelect.innerHTML = options;
-  
-  // Показываем погоду для выбранного города
-  renderSelectedWeather();
-  
-  // Обновляем чипы городов
-  updateCityChips();
-}
-
-function renderSelectedWeather() {
-  const selected = citySelect.value;
-  let weatherData = null;
-  let locationName = '';
-  let isUserLocation = false;
-  
-  if (selected === 'current' && curr_location) {
-    weatherData = curr_location.weather;
-    locationName = curr_location.place;
-    isUserLocation = curr_location.isUserLocation;
-  } else if (selected && selected.startsWith('loc-')) {
-    const index = parseInt(selected.split('-')[1]);
-    if (locations[index]) {
-      weatherData = locations[index].weather;
-      locationName = locations[index].place;
+    if (result == -1){
+      elemLocList.textContent = 'An error has occured. Please try refreshing.';
+      curr_location.weather = '';
+    }
+    else{
+      curr_location.weather = result;
     }
   }
   
-  if (!weatherData) {
-    weatherDisplay.innerHTML = '<div class="error-message">Нет данных о погоде</div>';
-    return;
-  }
-  
-  // Берём данные для сегодняшнего дня
-  const today = weatherData[0];
-  const todayPeriods = today[1];
-  const currentHour = new Date().getHours();
-  const periodIndex = Math.floor(currentHour / 6);
-  const currentTemp = todayPeriods[periodIndex][0];
-  
-  // Формируем HTML
-  let html = `
-    <div class="current-weather-card">
-      <div class="location-badge">${isUserLocation ? '📍 ТЕКУЩЕЕ МЕСТОПОЛОЖЕНИЕ' : '🌍 ' + locationName}</div>
-      <div class="temp-row">
-        <div class="big-temp">${currentTemp}°<sup>C</sup></div>
-        <div class="weather-condition">
-          <div class="condition-text">${currentTemp > 10 ? 'Облачно' : 'Дождь'}</div>
-          <div class="rain-chance">🌧️ ${currentTemp > 12 ? 10 : 40}%</div>
-        </div>
-      </div>
-      <div class="highlights-grid">
-        <div class="highlight-item"><span class="label">UV индекс</span><div class="value">${Math.floor(Math.random() * 7) + 1}</div></div>
-        <div class="highlight-item"><span class="label">Ветер</span><div class="value">${(3 + Math.random() * 8).toFixed(1)} км/ч</div><div>WSW</div></div>
-        <div class="highlight-item"><span class="label">Восход/закат</span><div class="sun-times"><span>🌅 6:35 AM</span><span>🌇 5:42 PM</span></div></div>
-        <div class="highlight-item"><span class="label">Влажность</span><div class="value">${40 + Math.floor(Math.random() * 35)}%</div></div>
-        <div class="highlight-item"><span class="label">Видимость</span><div class="value">${(4 + Math.random() * 8).toFixed(1)} км</div></div>
-        <div class="highlight-item"><span class="label">Кач. воздуха</span><div class="value">${50 + Math.floor(Math.random() * 70)}</div><div>Среднее</div></div>
-      </div>
-    </div>
-    <div class="forecast-days">
-  `;
-  
-  // Прогноз на 3 дня
-  for (let i = 0; i < Math.min(3, weatherData.length); i++) {
-    const day = weatherData[i];
-    const date = new Date(day[0]);
-    const dayName = i === 0 ? 'Сегодня' : WEEKDAYS[date.getDay()];
-    const dayPeriods = day[1];
-    const maxTemp = Math.max(...dayPeriods.map(p => p[2]));
-    const minTemp = Math.min(...dayPeriods.map(p => p[1]));
+  for (let i = 0; i < locations.length; i++){
+    if (elemLocationsList.length < 3){
+      break;
+    }
     
-    html += `
-      <div class="day-card">
-        <div class="day-name">${dayName}</div>
-        <div class="date">${date.getDate()} ${MONTHS[date.getMonth()].slice(0,3)}</div>
-        <div class="temp-range">${Math.round(maxTemp)}° / ${Math.round(minTemp)}°</div>
-        <div class="weather-icon">${maxTemp > 10 ? '☁️' : '🌧️'}</div>
-      </div>
-    `;
+    let elemLocList = elemLocationsList[i+2].getElementsByTagName('ul')[0];
+    elemLocList.textContent = 'loading...';
+    sleep(100);
+    let result = await getWeather(locations[i].latitude, locations[i].longitude);
+    if (result == -1){
+      elemLocList.textContent = 'An error has occured. Please try refreshing.';
+      locations[i].weather = '';
+    }
+    else{
+      locations[i].weather = result;
+    }
   }
   
-  html += '</div>';
-  weatherDisplay.innerHTML = html;
+  localStorage.setItem('locations', JSON.stringify(locations));
+
+  populateCurrentLocation();
+  populateElemLocations();
 }
 
-function updateCityChips() {
-  let chips = '';
-  for (let i = 0; i < locations.length; i++) {
-    chips += `
-      <div class="city-chip">
-        <span>${locations[i].place}</span>
-        <button class="remove-btn" data-index="${i}">✕</button>
-      </div>
-    `;
+// Current location
+
+const watchCurrGeo = navigator.geolocation.watchPosition(
+  (position) => {
+    curr_target = document.getElementsByClassName('current-location__geolocation')[0];
+    if (curr_location == ''){
+      addCurrentLocation(position.coords.latitude, position.coords.longitude);
+      curr_loc_geo.classList.remove('hidden');
+      curr_loc_man_ch.classList.add('hidden');
+    }
+  },
+  () => {
+    curr_target = document.getElementsByClassName('current-location__manual')[0];
+    curr_loc_geo.classList.add('hidden');
+    curr_loc_man_ch.classList.remove('hidden');
   }
-  cityChips.innerHTML = chips;
-  
-  // Добавляем обработчики удаления
-  document.querySelectorAll('.remove-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const index = parseInt(e.target.dataset.index);
-      removeCity(index);
-    });
-  });
-}
+);
 
-// ========== CITY MANAGEMENT ==========
-function addCity() {
-  const cityName = cityInput.value.trim();
-  if (!cityName) {
-    validationMessage.textContent = 'Введите название города';
+async function addCurrentLocation(latitude, longitude){
+  let elemLocList = curr_target.getElementsByTagName('ul')[0];
+  let entry = {latitude: latitude, longitude: longitude, data: '', place: 'Current location'};
+  let result = await getWeather(entry.latitude, entry.longitude);
+  if (result == -1){
+    elemLocList.textContent = 'An error has occured. Please try refreshing.';
     return;
   }
-  
-  const normalized = cityName.toLowerCase();
-  
-  if (!mapLocations[normalized]) {
-    validationMessage.textContent = `Город "${cityName}" не найден. Доступны: Москва, Нью-Йорк, Лондон...`;
+  else{
+    entry.weather = result;
+  }
+  if (curr_location != entry){
+    curr_location = entry;
+    populateCurrentLocation();
+  }
+}
+
+
+async function populateCurrentLocation(){
+  if (curr_location == ""){
     return;
   }
+  let elemLocList = curr_target.getElementsByTagName('ul')[0];
+  elemLocList.textContent = '';
+  fillElemLocation(curr_location, elemLocList);
+  // current weather
+  currentWeather.classList.remove('hidden');
+  let current_weather = document.getElementsByClassName('current-weather')[0].getElementsByTagName('span')[0];
+  let index = Math.floor(new Date().getHours() / 6);
+  let value = curr_location.weather[0][1][index][0];
+  let current_weather_image = document.getElementsByClassName('current-weather')[0].getElementsByTagName('img')[0];
+  current_weather_image.src = './media/icon_' + PERIODS[index] + '.png';
+  let degree = value + '°C';
+  if (value > 0) {degree = '+' + degree}
+  current_weather.textContent = value + '°C';
+}
+
+// Other locations
+
+async function populateElemLocations(){
+  let elemLocationsList = document.getElementsByClassName('location-data');
   
-  if (getListedPlaces().includes(normalized)) {
-    validationMessage.textContent = `Город "${cityName}" уже добавлен`;
+  while (elemLocationsList.length > 2){  // the first 2 elements are for current location
+    elemLocationsList[2].remove();
+  }
+
+  for (let i = 0; i < locations.length; i++){
+    createElemLocation(locations[i]);
+    let elemLocList = elemLocationsList[i+2].getElementsByTagName('ul')[0];
+    elemLocList.textContent = '';
+    fillElemLocation(locations[i], elemLocList);
+  }
+}
+
+async function createLocationEntry(place){
+  place = place.toLowerCase();
+  if (getListedPlaces().includes(place) || place == ""){
     return;
   }
-  
-  const newCity = {
-    place: cityName,
-    latitude: mapLocations[normalized][0],
-    longitude: mapLocations[normalized][1],
-    weather: null
-  };
-  
-  locations.unshift(newCity);
-  cityInput.value = '';
-  validationMessage.textContent = '';
-  
-  refreshWeatherData().then(() => {
-    updateUI();
-    saveToLocalStorage();
-  });
+  if (place in mapLocations == false){
+    return;
+  }
+  let entry = {latitude: mapLocations[place][0], longitude: mapLocations[place][1], data: '', place: place};
+  let result = await getWeather(entry.latitude, entry.longitude);
+  if (result == -1){
+    alert('An error has occured. Please try adding the entry again.');
+    return;
+  }
+  else{
+    entry.weather = result;
+  }
+  locations.unshift(entry);
+  populateElemLocations();
+  localStorage.setItem('locations', JSON.stringify(locations));
 }
 
-function removeCity(index) {
-  if (index >= 0 && index < locations.length) {
-    locations.splice(index, 1);
-    updateUI();
-    saveToLocalStorage();
+//// DOM
+
+const curr_loc_geo = document.getElementsByClassName('current-location__geolocation')[0];
+curr_loc_geo.classList.remove('hidden');
+const curr_loc_man_ch = document.getElementsByClassName('current-location__manual-choice')[0];
+curr_loc_man_ch.classList.add('hidden');
+const curr_loc_man = document.getElementsByClassName('current-location__manual')[0];
+curr_loc_man.classList.add('hidden');
+const currentWeather = document.getElementsByClassName('current-weather')[0];
+currentWeather.classList.add('hidden');
+
+const curr_loc_man_btn = curr_loc_man.getElementsByTagName('button')[0];
+curr_loc_man_btn.addEventListener('click', () => {
+  curr_target = document.getElementsByClassName('current-location__manual')[0];
+  curr_location = '';
+  currentWeather.classList.add('hidden');
+  curr_loc_geo.classList.add('hidden');
+  curr_loc_man_ch.classList.remove('hidden');
+  curr_loc_man.classList.add('hidden');
+})
+
+function createElemLocation(location){
+  let elemLocations = document.getElementsByClassName('locations')[0];
+  let locationData = document.createElement('section');
+  locationData.classList.add('location-data');
+  elemLocations.appendChild(locationData);
+
+  let locationInfo = document.createElement('div');
+  locationInfo.classList.add('location-data__info');
+  locationData.appendChild(locationInfo);
+  let locationHeader = document.createElement('h3');
+  locationHeader.textContent = capitalize(location.place);
+  locationInfo.appendChild(locationHeader);
+  let locationRemove = document.createElement('button');
+  locationRemove.classList.add('location__remove-btn');
+  locationRemove.addEventListener('click', (event) => {
+      let indToRemove = locations.indexOf(location);
+      if (indToRemove != -1){
+        locations.splice(indToRemove, 1);
+        event.target.parentNode.parentNode.remove();
+        localStorage.setItem('locations', JSON.stringify(locations));
+      }
+    }
+  )
+  locationInfo.appendChild(locationRemove);
+
+  let locationByDay = document.createElement('div');
+  locationByDay.classList.add('location-data-byday');
+  locationData.appendChild(locationByDay);
+  let locationList = document.createElement('ul');
+  locationByDay.appendChild(locationList);
+}
+
+function fillElemLocation(location, list){
+  if (location.weather == undefined){
+    return;
+  }
+  for (let i = 0; i < NDAYS; i++){
+    if (location.weather == ''){
+      let span = document.createElement('span');
+      span.textContent = 'An error has occured. Please try refreshing.';
+      list.appendChild(span);
+      break;
+    }
+    let dayData = location.weather[i];
+    let elemLocationDay = document.createElement('li');
+    let elemLocationDayHeader = document.createElement('span');
+    elemLocationDayHeader.textContent = WEEKDAYS[new Date(dayData[0]).getDay()] + ' ' + MONTHS[parseInt(dayData[0].slice(5, 7)) - 1].slice(0, 3) + ' ' + dayData[0].slice(8, 10);
+    elemLocationDayHeader.classList.add('day-header');
+    elemLocationDay.appendChild(elemLocationDayHeader);
+    let elemLocationDayEntries = document.createElement('div');
+    elemLocationDayEntries.classList.add('location-data-entries');
+    elemLocationDay.appendChild(elemLocationDayEntries);
+    for (let k = 0; k < 4; k++){
+      let elemLocationDayEntry = document.createElement('div');
+      elemLocationDayEntry.classList.add('location-data-entry');
+      elemLocationDayEntries.appendChild(elemLocationDayEntry);
+      let periodData = dayData[1][k];
+      let elemLocationDayPeriod = document.createElement('img');
+      elemLocationDayPeriod.src = './media/icon_' + PERIODS[k] + '.png';
+      elemLocationDayEntry.appendChild(elemLocationDayPeriod);
+      let elemLocationDayValue = document.createElement('span');
+      elemLocationDayValue.classList.add('value');
+      colorTemperature(elemLocationDayValue, periodData[0]);
+      let degree = periodData[0] + '°';
+      if (periodData[0] > 0){degree = '+' + degree}
+      elemLocationDayValue.textContent = degree;
+      elemLocationDayEntry.appendChild(elemLocationDayValue);
+    }
+    list.appendChild(elemLocationDay);
   }
 }
 
-// ========== EVENT LISTENERS ==========
-refreshBtn.addEventListener('click', refreshWeatherData);
-addCityBtn.addEventListener('click', addCity);
-cityInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') addCity();
-});
-citySelect.addEventListener('change', renderSelectedWeather);
-
-// ========== INITIALIZATION ==========
-function init() {
-  if (!loadFromLocalStorage()) {
-    requestGeolocation();
-  } else {
-    refreshWeatherData().then(() => {
-      updateUI();
-    });
+function colorTemperature(elem, value){
+  let tempValues = Object.keys(TMPR_COLORS).sort(function(a, b) { return b - a; });
+  for (let temp of tempValues){
+    if (value > temp - 100){
+      elem.style.background = TMPR_COLORS[temp];
+      return;
+    }
   }
+  elem.style.background = TMPR_COLORS[0];
 }
 
-init();
+const popups = document.getElementsByClassName('corner-popups')[0];
+for (let popup of popups.children){
+  popup.addEventListener('click', (event) => {event.target.classList.add('hidden')});
+}
+
+setupPage();
