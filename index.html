@@ -1,14 +1,52 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KRLKVA ToDo List</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+  <title>Погода · Лабораторная</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <script src="script.js"></script>
+  <div class="app-container">
+    <!-- Шапка -->
+    <div class="header">
+      <h1>⛅ Погода <span>Lab</span></h1>
+      <div class="city-selector">
+        <select id="citySelect"></select>
+        <button class="refresh-btn" id="refreshBtn" title="Обновить">↻</button>
+      </div>
+    </div>
+
+    <!-- Основной блок с погодой -->
+    <div id="weatherDisplay"></div>
+
+    <!-- Добавление города -->
+    <div class="add-city-section">
+      <div class="add-city-form">
+        <input type="text" id="cityInput" placeholder="Введите город..." list="cityDatalist">
+        <datalist id="cityDatalist">
+          <option value="Москва">
+          <option value="Санкт-Петербург">
+          <option value="Нью-Йорк">
+          <option value="Лондон">
+          <option value="Париж">
+          <option value="Токио">
+          <option value="Берлин">
+          <option value="Пекин">
+        </datalist>
+        <button id="addCityBtn">➕ Добавить</button>
+      </div>
+      <div id="validationMessage" class="validation-error"></div>
+      <div class="city-hint">💡 Выберите из списка (Москва, Нью-Йорк...)</div>
+    </div>
+
+    <!-- Список добавленных городов (чипы) -->
+    <div id="cityChips" class="city-chips"></div>
+
+    <!-- Область для сообщений (загрузка, ошибки) -->
+    <div id="globalMessage" class="message-area"></div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
