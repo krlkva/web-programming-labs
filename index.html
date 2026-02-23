@@ -1,52 +1,114 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
-  <title>Погода · Лабораторная</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="viewport" content="width=device-width">
+  <title>Plida's Weather Service</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+  <link rel="icon" href="media/4.png" type="image/png">
+  <link rel="stylesheet" href="style.css">
+  <script src="index.js" type="module" defer></script>
 </head>
 <body>
-  <div class="app-container">
-    <!-- Шапка -->
-    <div class="header">
-      <h1>⛅ Погода <span>Lab</span></h1>
-      <div class="city-selector">
-        <select id="citySelect"></select>
-        <button class="refresh-btn" id="refreshBtn" title="Обновить">↻</button>
+  <header>
+    <nav>
+      <ul>
+        <li>
+          <a href="https://webdevitmo.plida.ru"><img src="media/4.png">
+          <h1 class="site-name-long">Plida's cool weather service<br>Web programming lab work #4</h1>
+          <h1 class="site-name-middle">Plida's cool weather service</h1>
+          <h1 class="site-name-short"></h1>
+          </a>
+        </li>
+        <li>
+          <a href="https://github.com/plida/itmo_webdev/tree/main/public/lab4"><img src="media/Octicons-mark-github.svg.png"></a>
+        </li>
+      </ul>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="corner-popups">
+      <span class="invalid-input hidden">Invalid city!</span>
+      <span class="invalid-country-input hidden">Invalid country!</span>
+      <span class="repeat-input hidden">You've already picked this city!</span>
+    </section>
+    
+    <div class="main-container">
+    <button id="refresh-btn">Refresh</button>
+    
+    <section class="current-location">
+      <h2>Current location</h2>
+      <div class="current-weather">
+        <img>
+        <span></span>
       </div>
-    </div>
+      <div class="current-location__geolocation">
+        <section class="location-data">
+          <div class="location-data-byday">
+            <ul></ul>
+          </div>
+        </section>
 
-    <!-- Основной блок с погодой -->
-    <div id="weatherDisplay"></div>
-
-    <!-- Добавление города -->
-    <div class="add-city-section">
-      <div class="add-city-form">
-        <input type="text" id="cityInput" placeholder="Введите город..." list="cityDatalist">
-        <datalist id="cityDatalist">
-          <option value="Москва">
-          <option value="Санкт-Петербург">
-          <option value="Нью-Йорк">
-          <option value="Лондон">
-          <option value="Париж">
-          <option value="Токио">
-          <option value="Берлин">
-          <option value="Пекин">
+      </div>
+      <div class="current-location__manual-choice">
+        <section class="add-location__country choose-place">
+        <span>Choose country</span>
+        <input list="curr-countries" name="myCity">
+        <button class="set-country-btn">Set</button>
+        <datalist id="curr-countries" class="datalist-countries">
+          <select></select>
         </datalist>
-        <button id="addCityBtn">➕ Добавить</button>
+      </section>
+      <section class="add-location__city choose-place">
+        <span>Choose city</span>
+        <input list="curr-cities" name="myCity">
+        <button class="add-current-btn">Add</button>
+        <datalist id="curr-cities" class="datalist-cities">
+          <select></select>
+        </datalist>
+      </section>
       </div>
-      <div id="validationMessage" class="validation-error"></div>
-      <div class="city-hint">💡 Выберите из списка (Москва, Нью-Йорк...)</div>
+      <div class="current-location__manual">
+        <button>Change city</button>
+        <section class="location-data">
+          <div class="location-data-byday">
+            <ul></ul>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    
+
+    <section class="locations">
+      <h2>Other locations</h2>
+      <section class="add-location">
+      <section class="add-location__country choose-place">
+        <span>Choose country</span>
+        <input list="curr-countries" name="myCity">
+        <button class="set-country-btn">Set</button>
+        <datalist id="curr-countries" class="datalist-countries">
+          <select></select>
+        </datalist>
+      </section>
+      <section class="add-location__city choose-place">
+        <span>Choose city</span>
+        <input list="other-cities" name="myCity">
+        <button class="add-city-btn">Add</button>
+        <datalist id="other-cities" class="datalist-cities">
+          <select></select>
+        </datalist>
+      </section>
+      </section>
+      
+
+    </section>
     </div>
-
-    <!-- Список добавленных городов (чипы) -->
-    <div id="cityChips" class="city-chips"></div>
-
-    <!-- Область для сообщений (загрузка, ошибки) -->
-    <div id="globalMessage" class="message-area"></div>
-  </div>
-
-  <script src="script.js"></script>
+  </main>
+  <footer>
+    <span>Plida 2025</span>
+  </footer>
 </body>
 </html>
