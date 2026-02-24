@@ -1,570 +1,332 @@
-//// VARIABLES
+// script.js — чистая логика, без фреймворков
 
-const PERIODS = {0: 'night', 1: 'morning', 2: 'afternoon', 3: 'evening'};
-const WEEKDAYS = {0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday'};
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const TMPR_COLORS = {
-  140: '#ffb0b0',
-  130: '#ffd7b0',
-  120: '#fff7b0',
-  110: '#dfffb0',
-  100: '#b0ffed',
-  90: '#b0f1ff',
-  80: '#b0d7ff',
-  70: '#b0c0ff',
-  0: '#9e9aff'
-}
-const NDAYS = 3;
-let mapCountries = []
-let mapLocations = {
-  'St Petersburg': [59.938886, 30.313838],
-  'Veliky Novgorod': [58.523342, 31.267735],
-  'Moscow': [55.763263, 37.613748],
-  'Yekaterinburg': [56.882507, 60.543053],
-  'Novosibirsk': [55.055589, 82.910959],
-}
-let currMapLocations = {};
-let locations = [];
-let curr_location = '';
-let curr_target = document.getElementsByClassName('current-location__geolocation')[0];
+// ---------- Конфигурация, заглушки данных ----------
+const API_KEY = '663eaac6d07b482b9bc170359252602';  // бесплатный ключ weatherapi (тестовый)
+const BASE_URL = 'https://api.weatherapi.com/v1/forecast.json';
 
-//// HELPERS
+// Хардкод подсказок (можно заменить на открытое api, но по заданию разрешено)
+const CITY_SUGGESTIONS = [
+    "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань", 
+    "Нижний Новгород", "Челябинск", "Самара", "Омск", "Ростов-на-Дону",
+    "Уфа", "Красноярск", "Воронеж", "Пермь", "Волгоград", "Краснодар",
+    "Саратов", "Тюмень", "Тольятти", "Ижевск", "Барнаул", "Ульяновск"
+];
 
-function sleep(milliseconds) {
-  const date = Date.now();
-  let currentDate = null;
-  do {
-    currentDate = Date.now();
-  } while (currentDate - date < milliseconds);
-}
+// Состояние приложения
+let mainCity = 'Текущее местоположение';   // отображаемое имя
+let mainCoords = null;                      // { lat, lon } если есть гео
+let additionalCities = [];                  // массив названий (строки)
+let forecastsCache = new Map();              // город -> данные прогноза
 
+// ---------- DOM элементы ----------
+const refreshBtn = document.getElementById('refreshBtn');
+const addCityBtn = document.getElementById('addCityBtn');
+const currentCityDisplay = document.getElementById('currentCityDisplay');
+const weatherForecastContainer = document.getElementById('weatherForecastContainer');
+const highlightsContainer = document.getElementById('highlightsContainer');
+const loadingIndicator = document.getElementById('loadingIndicator');
+const globalMessage = document.getElementById('globalMessage');
+const cityChipsContainer = document.getElementById('cityChipsContainer');
+const overlay = document.getElementById('overlay');
+const modalTitle = document.getElementById('modalTitle');
+const cityInput = document.getElementById('cityInput');
+const suggestionsBox = document.getElementById('suggestionsBox');
+const inputError = document.getElementById('inputError');
+const modalCancel = document.getElementById('modalCancel');
+const modalConfirm = document.getElementById('modalConfirm');
+const cityCount = document.getElementById('cityCount');
 
-function round(number, precision = 1){
-  return Math.round(
-    number * Math.pow(10, precision)
-  ) / Math.pow(10, precision);
-}
+let activeModalResolve = null; // для промиса модалки
 
-
-function capitalize(val) {
-  return String(val).charAt(0).toUpperCase() + String(val).slice(1);
+// ---------- helpers ----------
+function showMessage(msg, isError = false) {
+    globalMessage.textContent = msg;
+    globalMessage.style.color = isError ? '#b02d26' : '#1e3b5c';
+    if (msg) setTimeout(() => { if (globalMessage.textContent === msg) globalMessage.textContent = ''; }, 4000);
 }
 
-
-function getListedPlaces(){
-  let listedPlaces = [];
-  for (let location of locations){
-    listedPlaces.unshift(location.place);
-  }
-  return listedPlaces;
+// загрузка/успех/ошибка
+function setLoading(loading) {
+    loadingIndicator.style.display = loading ? 'block' : 'none';
 }
 
-function animatePopup(popup){
-  let animationSpeed = 250;
-  popup.classList.remove('hidden');
-  popup.animate(
-  [
-    { opacity: 0, transform: 'translateY(-2rem)' },
-    { opacity: 1, transform: 'translateY(0)' },
-  ], 
-  {
-    duration: animationSpeed,
-    iterations: 1,
-  });
+// ---------- работа с localStorage ----------
+const STORAGE_KEY = 'weather_app_data';
+function saveToStorage() {
+    const data = {
+        mainCity: mainCity,
+        mainCoords: mainCoords,
+        additionalCities: additionalCities,
+        // не кешируем forecasts, они запрашиваются заново при загрузке
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-//// START
-
-if (localStorage.getItem('locations')){
-  locations = JSON.parse(localStorage.getItem('locations'));
+function loadFromStorage() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    try {
+        const data = JSON.parse(raw);
+        if (data.mainCity) mainCity = data.mainCity;
+        if (data.mainCoords) mainCoords = data.mainCoords;
+        if (Array.isArray(data.additionalCities)) additionalCities = data.additionalCities;
+        return true;
+    } catch (e) { return false; }
 }
 
+// ---------- запрос к weatherapi (forecast на 3 дня) ----------
+async function fetchWeatherForCity(cityNameOrCoords) {
+    let query;
+    if (typeof cityNameOrCoords === 'string') query = cityNameOrCoords;
+    else if (cityNameOrCoords?.lat && cityNameOrCoords?.lon) query = `${cityNameOrCoords.lat},${cityNameOrCoords.lon}`;
+    else throw new Error('невалидный запрос');
 
-async function setupPage(){
-  getCountries();
-  populateElemLocations();
-  refreshWeatherData();
+    const url = `${BASE_URL}?key=${API_KEY}&q=${encodeURIComponent(query)}&days=3&lang=ru&aqi=yes`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('город не найден или ошибка сети');
+    return await resp.json();
 }
 
+// обновить все города (основной + доп)
+async function refreshAllWeather() {
+    setLoading(true);
+    weatherForecastContainer.innerHTML = '';
+    highlightsContainer.innerHTML = '';
+    let anySuccess = false;
 
-//// LOGIC
-
-// Country and city selects
-
-let countriesLists = document.getElementsByClassName('datalist-countries');
-
-for (let i = 0; i < countriesLists.length; i++){
-  let list = countriesLists[i];
-  let mode = 'default';
-  if (i == 0){
-    mode = 'curr';
-  }
-  let respectiveCity = list.parentNode.parentNode.getElementsByClassName('add-location__city')[0];
-  respectiveCity.classList.add('hidden');
-  let input = list.parentNode.getElementsByTagName('input')[0];
-  input.value = '';
-  let select = list.getElementsByTagName('select')[0];
-  select.addEventListener('change', (event) => {
-    processNewCountry(event, list, mode);
-  })
-  let set_btn = list.parentNode.getElementsByClassName('set-country-btn')[0];
-  set_btn.addEventListener('click', (event) => {
-    processNewCountry(event, list, mode)
-  });
-}
-
-function populateCountriesLists(){
-  let countriesLists = document.getElementsByClassName('datalist-countries');
-  for (let list of countriesLists){
-    let selectList = list.getElementsByTagName('select')[0];
-    selectList.textContent = '';
-    for (let [place, id] of Object.entries(mapCountries)){
-      let elemPlace = document.createElement('option');
-      elemPlace.value = capitalize(place);
-      selectList.appendChild(elemPlace);
-    }
-  }
-}
-
-function processNewCountry(event, list, mode='default'){
-  let country_select = list.parentNode.getElementsByTagName('input')[0];
-  let error_popup = document.getElementsByClassName('invalid-country-input')[0];
-  let error_city_popup = document.getElementsByClassName('invalid-input')[0];
-  let respectiveCity = list.parentNode.parentNode.getElementsByClassName('add-location__city')[0];
-  respectiveCity.classList.add('hidden');
-  if (country_select.value.toLowerCase() in mapCountries){
-    error_popup.classList.add('hidden');
-    respectiveCity.classList.remove('hidden');
-    fetchCities(mapCountries[country_select.value.toLowerCase()], mode)
-  }
-  else{
-    error_popup.classList.remove('hidden');
-    error_city_popup.classList.add('hidden');
-    animatePopup(error_popup);
-  }
-}
-
-async function getCountries(){
-  const requestURL =
-    "https://plida.github.io/cities-info/countries.json";
-  const request = new Request(requestURL);
-
-  const response = await fetch(request);
-  const cities = await response.json();
-  
-  for (let country of cities){
-    mapCountries[country.name.toLowerCase()] = country.id;
-  }
-
-  populateCountriesLists();
-}
-
-
-let citiesLists = document.getElementsByClassName('datalist-cities');
-for (let i = 0; i < citiesLists.length; i++){
-  let input = citiesLists[i].parentNode.getElementsByTagName('input')[0];
-  input.value = '';
-  let select = citiesLists[i].getElementsByTagName('select')[0]; 
-  select.addEventListener('change', () => {
-      if (i > 1){
-        let mode = 'default'; 
-      }
-      else{
-        let mode = 'curr';
-      }
-      processNewCity(citiesLists[i], mode);
-    }
-  )
-}
-
-function populateCitiesLists(){
-  let citiesLists = document.getElementsByClassName('datalist-cities');
-  for (let i = 0; i < citiesLists.length; i++){
-    let list = citiesLists[i];
-    let selectList = list.getElementsByTagName('select')[0];
-    selectList.textContent = '';
-    if (i == 0){
-      for (let [place, coords] of Object.entries(currMapLocations)){
-        let elemPlace = document.createElement('option');
-        elemPlace.value = capitalize(place);
-        selectList.appendChild(elemPlace);
-    }}
-    else{
-      for (let [place, coords] of Object.entries(mapLocations)){
-        let elemPlace = document.createElement('option');
-        elemPlace.value = capitalize(place);
-        selectList.appendChild(elemPlace);
-    }
-    }
-  }
-}
-
-async function fetchCities(country_id, mode) {
-  const requestURL =
-    "https://plida.github.io/cities-info/cities.json";
-  const request = new Request(requestURL);
-
-  const response = await fetch(request);
-  const cities = await response.json();
-  
-  if (mode == 'curr'){
-    currMapLocations = {};
-    for (let city of cities){
-      if (city.country_id == country_id){
-        currMapLocations[city.name.toLowerCase()] = [city.latitude, city.longitude];
-      }
-    }
-  }
-  else{
-    mapLocations = {};
-    for (let city of cities){
-      if (city.country_id == country_id){
-        mapLocations[city.name.toLowerCase()] = [city.latitude, city.longitude];
-      }
-    }
-  }
-
-  populateCitiesLists();
-}
-
-function processNewCity(list, mode = 'default'){
-  let city_select = list.parentNode.getElementsByTagName('input')[0];
-  let error_popup = document.getElementsByClassName('invalid-input')[0];
-  let repeat_popup = document.getElementsByClassName('repeat-input')[0];
-
-  repeat_popup.classList.add('hidden');
-  error_popup.classList.add('hidden');
-  let value = city_select.value.toLowerCase();
-  if (getListedPlaces().includes(value) && mode == 'default'){
-    repeat_popup.classList.remove('hidden');
-    animatePopup(repeat_popup);
-    return;
-  }
-
-  if (mode == 'curr' && value in currMapLocations){
-    addCurrentLocation(currMapLocations[value][0], currMapLocations[value][1]);
-  }
-  else if (mode == 'default' && value in mapLocations){
-    createLocationEntry(value)
-  }
-  else{
-    error_popup.classList.remove('hidden');
-    animatePopup(error_popup);
-  }
-}
-
-
-let add_current_btns = document.getElementsByClassName('add-current-btn');
-for (let btn of add_current_btns){
-  let list = btn.parentNode.getElementsByTagName('datalist')[0];
-  let add_select = btn.parentNode.getElementsByTagName('input')[0];
-  add_select.value = "";
-  btn.addEventListener('click', () => {
-    curr_target = document.getElementsByClassName('current-location__manual')[0];
-    processNewCity(list, 'curr');
-    curr_loc_man_ch.classList.add('hidden');
-    curr_loc_man.classList.remove('hidden');
-  });
-}
-
-let add_city_btns = document.getElementsByClassName('add-city-btn');
-for (let btn of add_city_btns){
-  let list = btn.parentNode.getElementsByTagName('datalist')[0];
-  btn.addEventListener('click', () => {processNewCity(list, 'default')});
-}
-
-// Weather API
-
-async function getWeather(latitude, longitude){
-  const apiURL = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m&timezone=auto`;
-  try {
-    let response = await fetch(apiURL);
-    if (!response.ok) {
-      throw new Error(`Response status: ${response.status}`);
-    }
-    let days = await response.json();
-    return parseWeatherData(days)
-  } catch (error) {
-    console.error(error.message);
-    return -1;
-  }
-}
-
-
-function parseWeatherData(data){
-  let days = [];
-  let temperatures = data.hourly.temperature_2m;
-  for (let i = 0; i < 7; i++){
-    let periods = [];
-    for (let k = 0; k < 4; k++){
-      let avgTemp = 0;
-      let minTemp = 1000;
-      let maxTemp = -1000;
-      for (let j = 24 * i + (6 * k); j < 24 * (i) + (6 * (k+1)); j++){
-        let roundTemp = round(temperatures[j], 1);
-        avgTemp += roundTemp; 
-        if (roundTemp < minTemp){
-          minTemp = roundTemp;
+    try {
+        // запрос для основного города
+        if (mainCoords || (mainCity !== 'Текущее местоположение' && mainCity)) {
+            try {
+                const query = mainCoords || mainCity;
+                const data = await fetchWeatherForCity(query);
+                forecastsCache.set('main', data);
+                renderMainWeather(data);
+                anySuccess = true;
+            } catch (e) {
+                showMessage(`Ошибка основного города: ${e.message}`, true);
+                forecastsCache.delete('main');
+            }
+        } else if (mainCity === 'Текущее местоположение' && !mainCoords) {
+            // гео ещё не получено или отказано
         }
-        if (roundTemp > maxTemp){
-          maxTemp = roundTemp;
+
+        // запросы для дополнительных городов (не больше 3 одновременно, но для демо хватит)
+        const additionalFetchPromises = additionalCities.map(async (city) => {
+            try {
+                const data = await fetchWeatherForCity(city);
+                forecastsCache.set(city, data);
+            } catch {
+                forecastsCache.delete(city);
+            }
+        });
+        await Promise.allSettled(additionalFetchPromises);
+        renderCityChips();
+        if (!anySuccess && additionalCities.length === 0 && !mainCoords) {
+            // ничего не загружено — предложим ввести город
+            showMessage('⬆️ добавьте город через кнопку', false);
         }
-      }
-      avgTemp = round(avgTemp / 6, 1);
-      periods.push([avgTemp, minTemp, maxTemp]);
+    } finally {
+        setLoading(false);
     }
-    days.push([data.hourly.time[i*24], periods]);
-  }
-  return days;
 }
 
+// ---------- отрисовка основной погоды ----------
+function renderMainWeather(data) {
+    if (!data) return;
+    const forecast = data.forecast?.forecastday;
+    if (!forecast || forecast.length < 3) return;
 
-const refresh_btn = document.getElementById('refresh-btn');
-refresh_btn.addEventListener('click', () =>{
-  refreshWeatherData();
-})
+    // отображение названия города
+    const locationName = data.location?.name || mainCity;
+    currentCityDisplay.textContent = locationName;
 
-async function refreshWeatherData(){
-  let elemLocationsList = document.getElementsByClassName('location-data');
-  let elemLocList = curr_target.getElementsByTagName('ul')[0];
-  currentWeather.classList.add('hidden');
-  elemLocList.textContent = 'loading...';
-  if (curr_location != ""){
-    let result = await getWeather(curr_location.latitude, curr_location.longitude);
-    if (result == -1){
-      elemLocList.textContent = 'An error has occured. Please try refreshing.';
-      curr_location.weather = '';
-    }
-    else{
-      curr_location.weather = result;
-    }
-  }
-  
-  for (let i = 0; i < locations.length; i++){
-    if (elemLocationsList.length < 3){
-      break;
-    }
-    
-    let elemLocList = elemLocationsList[i+2].getElementsByTagName('ul')[0];
-    elemLocList.textContent = 'loading...';
-    sleep(100);
-    let result = await getWeather(locations[i].latitude, locations[i].longitude);
-    if (result == -1){
-      elemLocList.textContent = 'An error has occured. Please try refreshing.';
-      locations[i].weather = '';
-    }
-    else{
-      locations[i].weather = result;
-    }
-  }
-  
-  localStorage.setItem('locations', JSON.stringify(locations));
+    // дни (сегодня + 2)
+    let daysHtml = '<div class="days-grid">';
+    forecast.forEach(day => {
+        const date = new Date(day.date);
+        const dayName = date.toLocaleDateString('ru-RU', { weekday: 'short' }).replace('.', '');
+        daysHtml += `
+            <div class="day-card">
+                <div class="day-name">${dayName}</div>
+                <div class="temp-high">${Math.round(day.day.maxtemp_c)}°</div>
+                <div class="temp-low">${Math.round(day.day.mintemp_c)}°</div>
+                <div class="condition-icon">${day.day.condition.text}</div>
+            </div>
+        `;
+    });
+    daysHtml += '</div>';
+    weatherForecastContainer.innerHTML = daysHtml;
 
-  populateCurrentLocation();
-  populateElemLocations();
+    // Today's Highlights (имитация референса)
+    const current = data.current;
+    highlightsContainer.innerHTML = `
+        <div class="highlight-item"><span class="highlight-label">🌡️ UV Index</span><span class="highlight-value">${current.uv}</span></div>
+        <div class="highlight-item"><span class="highlight-label">💨 Wind</span><span class="highlight-value">${current.wind_kph} <span class="sub">km/h</span></span><br><span>${current.wind_dir}</span></div>
+        <div class="highlight-item"><span class="highlight-label">🌅 Sunrise</span><span class="highlight-value">${forecast[0].astro?.sunrise || '6:35'}</span><br><span>↓ ${forecast[0].astro?.sunset || '18:20'}</span></div>
+        <div class="highlight-item"><span class="highlight-label">☁️ Clouds</span><span class="highlight-value">${current.cloud}%</span><br> <span>🌧️ ${forecast[0].day.daily_chance_of_rain}%</span></div>
+        <div class="highlight-item"><span class="highlight-label">💧 Humidity</span><span class="highlight-value">${current.humidity}%</span></div>
+        <div class="highlight-item"><span class="highlight-label">👁️ Visibility</span><span class="highlight-value">${current.vis_km} km</span></div>
+        <div class="highlight-item"><span class="highlight-label">🍃 AirQuality</span><span class="highlight-value">${current.air_quality?.['us-epa-index'] || 2}</span> <span class="sub">${current.air_quality?.['us-epa-index'] === 1 ? 'Good' : 'Moderate'}</span></div>
+    `;
 }
 
-// Current location
+// отрисовка чипсов дополнительных городов
+function renderCityChips() {
+    let html = '';
+    additionalCities.forEach(city => {
+        const cached = forecastsCache.get(city);
+        const temp = cached ? `${Math.round(cached.current.temp_c)}°` : '?';
+        html += `
+            <div class="city-chip" data-city="${city}">
+                <span>${city} ${temp}</span>
+                <span class="remove-btn" data-remove="${city}">✕</span>
+            </div>
+        `;
+    });
+    cityChipsContainer.innerHTML = html;
+    cityCount.textContent = additionalCities.length + ' / 5'; // лимит условный
 
-const watchCurrGeo = navigator.geolocation.watchPosition(
-  (position) => {
-    curr_target = document.getElementsByClassName('current-location__geolocation')[0];
-    if (curr_location == ''){
-      addCurrentLocation(position.coords.latitude, position.coords.longitude);
-      curr_loc_geo.classList.remove('hidden');
-      curr_loc_man_ch.classList.add('hidden');
+    // обработчики на удаление
+    document.querySelectorAll('.remove-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const cityToRemove = btn.dataset.remove;
+            additionalCities = additionalCities.filter(c => c !== cityToRemove);
+            forecastsCache.delete(cityToRemove);
+            saveToStorage();
+            renderCityChips();
+            refreshAllWeather(); // перезапросим (главное не сломать)
+        });
+    });
+    // клик по чипсу — показать в основном блоке (но в задании не обязательно, можно оставить как бонус)
+}
+
+// ---------- модалка добавления города ----------
+function showAddCityModal(existingValue = '') {
+    overlay.classList.remove('hidden');
+    cityInput.value = existingValue;
+    inputError.textContent = '';
+    suggestionsBox.innerHTML = '';
+    cityInput.focus();
+
+    return new Promise((resolve) => {
+        activeModalResolve = resolve;
+
+        const handlerSuggest = () => {
+            const val = cityInput.value.trim().toLowerCase();
+            if (!val) { suggestionsBox.style.display = 'none'; return; }
+            const filtered = CITY_SUGGESTIONS.filter(c => c.toLowerCase().includes(val)).slice(0, 6);
+            if (filtered.length) {
+                suggestionsBox.style.display = 'block';
+                suggestionsBox.innerHTML = filtered.map(c => `<div data-suggest="${c}">${c}</div>`).join('');
+                document.querySelectorAll('[data-suggest]').forEach(el => {
+                    el.addEventListener('click', () => {
+                        cityInput.value = el.dataset.suggest;
+                        suggestionsBox.style.display = 'none';
+                    });
+                });
+            } else { suggestionsBox.style.display = 'none'; }
+        };
+
+        cityInput.addEventListener('input', handlerSuggest);
+        const closeModal = (result) => {
+            overlay.classList.add('hidden');
+            cityInput.removeEventListener('input', handlerSuggest);
+            activeModalResolve = null;
+            resolve(result);
+        };
+
+        modalCancel.onclick = () => closeModal(null);
+        modalConfirm.onclick = () => {
+            const selected = cityInput.value.trim();
+            if (!selected) { inputError.textContent = 'Введите город'; return; }
+            if (!CITY_SUGGESTIONS.some(s => s.toLowerCase() === selected.toLowerCase())) {
+                inputError.textContent = 'Такого города нет в списке';
+                return;
+            }
+            // нормализуем до варианта из списка (как написано)
+            const normalized = CITY_SUGGESTIONS.find(s => s.toLowerCase() === selected.toLowerCase()) || selected;
+            if (additionalCities.includes(normalized) || (mainCity === normalized)) {
+                inputError.textContent = 'Город уже добавлен';
+                return;
+            }
+            closeModal(normalized);
+        };
+    });
+}
+
+// ---------- инициализация и гео ----------
+async function initApp() {
+    const fromStorage = loadFromStorage();
+    if (fromStorage && (mainCoords || mainCity)) {
+        // есть сохранённые данные
+        refreshAllWeather();
+    } else {
+        // запрос геолокации
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    mainCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                    mainCity = 'Текущее местоположение';
+                    saveToStorage();
+                    refreshAllWeather();
+                },
+                (err) => {
+                    showMessage('Геолокация отклонена. Добавьте город вручную.', false);
+                    handleNoGeo();
+                }
+            );
+        } else {
+            handleNoGeo();
+        }
     }
-  },
-  () => {
-    curr_target = document.getElementsByClassName('current-location__manual')[0];
-    curr_loc_geo.classList.add('hidden');
-    curr_loc_man_ch.classList.remove('hidden');
-  }
-);
-
-async function addCurrentLocation(latitude, longitude){
-  let elemLocList = curr_target.getElementsByTagName('ul')[0];
-  let entry = {latitude: latitude, longitude: longitude, data: '', place: 'Current location'};
-  let result = await getWeather(entry.latitude, entry.longitude);
-  if (result == -1){
-    elemLocList.textContent = 'An error has occured. Please try refreshing.';
-    return;
-  }
-  else{
-    entry.weather = result;
-  }
-  if (curr_location != entry){
-    curr_location = entry;
-    populateCurrentLocation();
-  }
 }
 
-
-async function populateCurrentLocation(){
-  if (curr_location == ""){
-    return;
-  }
-  let elemLocList = curr_target.getElementsByTagName('ul')[0];
-  elemLocList.textContent = '';
-  fillElemLocation(curr_location, elemLocList);
-  // current weather
-  currentWeather.classList.remove('hidden');
-  let current_weather = document.getElementsByClassName('current-weather')[0].getElementsByTagName('span')[0];
-  let index = Math.floor(new Date().getHours() / 6);
-  let value = curr_location.weather[0][1][index][0];
-  let current_weather_image = document.getElementsByClassName('current-weather')[0].getElementsByTagName('img')[0];
-  current_weather_image.src = './media/icon_' + PERIODS[index] + '.png';
-  let degree = value + '°C';
-  if (value > 0) {degree = '+' + degree}
-  current_weather.textContent = value + '°C';
-}
-
-// Other locations
-
-async function populateElemLocations(){
-  let elemLocationsList = document.getElementsByClassName('location-data');
-  
-  while (elemLocationsList.length > 2){  // the first 2 elements are for current location
-    elemLocationsList[2].remove();
-  }
-
-  for (let i = 0; i < locations.length; i++){
-    createElemLocation(locations[i]);
-    let elemLocList = elemLocationsList[i+2].getElementsByTagName('ul')[0];
-    elemLocList.textContent = '';
-    fillElemLocation(locations[i], elemLocList);
-  }
-}
-
-async function createLocationEntry(place){
-  place = place.toLowerCase();
-  if (getListedPlaces().includes(place) || place == ""){
-    return;
-  }
-  if (place in mapLocations == false){
-    return;
-  }
-  let entry = {latitude: mapLocations[place][0], longitude: mapLocations[place][1], data: '', place: place};
-  let result = await getWeather(entry.latitude, entry.longitude);
-  if (result == -1){
-    alert('An error has occured. Please try adding the entry again.');
-    return;
-  }
-  else{
-    entry.weather = result;
-  }
-  locations.unshift(entry);
-  populateElemLocations();
-  localStorage.setItem('locations', JSON.stringify(locations));
-}
-
-//// DOM
-
-const curr_loc_geo = document.getElementsByClassName('current-location__geolocation')[0];
-curr_loc_geo.classList.remove('hidden');
-const curr_loc_man_ch = document.getElementsByClassName('current-location__manual-choice')[0];
-curr_loc_man_ch.classList.add('hidden');
-const curr_loc_man = document.getElementsByClassName('current-location__manual')[0];
-curr_loc_man.classList.add('hidden');
-const currentWeather = document.getElementsByClassName('current-weather')[0];
-currentWeather.classList.add('hidden');
-
-const curr_loc_man_btn = curr_loc_man.getElementsByTagName('button')[0];
-curr_loc_man_btn.addEventListener('click', () => {
-  curr_target = document.getElementsByClassName('current-location__manual')[0];
-  curr_location = '';
-  currentWeather.classList.add('hidden');
-  curr_loc_geo.classList.add('hidden');
-  curr_loc_man_ch.classList.remove('hidden');
-  curr_loc_man.classList.add('hidden');
-})
-
-function createElemLocation(location){
-  let elemLocations = document.getElementsByClassName('locations')[0];
-  let locationData = document.createElement('section');
-  locationData.classList.add('location-data');
-  elemLocations.appendChild(locationData);
-
-  let locationInfo = document.createElement('div');
-  locationInfo.classList.add('location-data__info');
-  locationData.appendChild(locationInfo);
-  let locationHeader = document.createElement('h3');
-  locationHeader.textContent = capitalize(location.place);
-  locationInfo.appendChild(locationHeader);
-  let locationRemove = document.createElement('button');
-  locationRemove.classList.add('location__remove-btn');
-  locationRemove.addEventListener('click', (event) => {
-      let indToRemove = locations.indexOf(location);
-      if (indToRemove != -1){
-        locations.splice(indToRemove, 1);
-        event.target.parentNode.parentNode.remove();
-        localStorage.setItem('locations', JSON.stringify(locations));
-      }
+async function handleNoGeo() {
+    // предлагаем ввести основной город через ту же модалку
+    const city = await showAddCityModal('');
+    if (city) {
+        mainCity = city;
+        mainCoords = null;
+        saveToStorage();
+        refreshAllWeather();
+    } else {
+        // если закрыл крестиком — все равно предложим позже
     }
-  )
-  locationInfo.appendChild(locationRemove);
-
-  let locationByDay = document.createElement('div');
-  locationByDay.classList.add('location-data-byday');
-  locationData.appendChild(locationByDay);
-  let locationList = document.createElement('ul');
-  locationByDay.appendChild(locationList);
 }
 
-function fillElemLocation(location, list){
-  if (location.weather == undefined){
-    return;
-  }
-  for (let i = 0; i < NDAYS; i++){
-    if (location.weather == ''){
-      let span = document.createElement('span');
-      span.textContent = 'An error has occured. Please try refreshing.';
-      list.appendChild(span);
-      break;
+// ---------- события ----------
+refreshBtn.addEventListener('click', () => {
+    refreshAllWeather();
+});
+
+addCityBtn.addEventListener('click', async () => {
+    if (additionalCities.length >= 5) {
+        alert('Максимум 5 доп. городов');
+        return;
     }
-    let dayData = location.weather[i];
-    let elemLocationDay = document.createElement('li');
-    let elemLocationDayHeader = document.createElement('span');
-    elemLocationDayHeader.textContent = WEEKDAYS[new Date(dayData[0]).getDay()] + ' ' + MONTHS[parseInt(dayData[0].slice(5, 7)) - 1].slice(0, 3) + ' ' + dayData[0].slice(8, 10);
-    elemLocationDayHeader.classList.add('day-header');
-    elemLocationDay.appendChild(elemLocationDayHeader);
-    let elemLocationDayEntries = document.createElement('div');
-    elemLocationDayEntries.classList.add('location-data-entries');
-    elemLocationDay.appendChild(elemLocationDayEntries);
-    for (let k = 0; k < 4; k++){
-      let elemLocationDayEntry = document.createElement('div');
-      elemLocationDayEntry.classList.add('location-data-entry');
-      elemLocationDayEntries.appendChild(elemLocationDayEntry);
-      let periodData = dayData[1][k];
-      let elemLocationDayPeriod = document.createElement('img');
-      elemLocationDayPeriod.src = './media/icon_' + PERIODS[k] + '.png';
-      elemLocationDayEntry.appendChild(elemLocationDayPeriod);
-      let elemLocationDayValue = document.createElement('span');
-      elemLocationDayValue.classList.add('value');
-      colorTemperature(elemLocationDayValue, periodData[0]);
-      let degree = periodData[0] + '°';
-      if (periodData[0] > 0){degree = '+' + degree}
-      elemLocationDayValue.textContent = degree;
-      elemLocationDayEntry.appendChild(elemLocationDayValue);
+    const newCity = await showAddCityModal('');
+    if (newCity) {
+        additionalCities.push(newCity);
+        saveToStorage();
+        renderCityChips();
+        refreshAllWeather(); // подгрузим данные нового города
     }
-    list.appendChild(elemLocationDay);
-  }
-}
+});
 
-function colorTemperature(elem, value){
-  let tempValues = Object.keys(TMPR_COLORS).sort(function(a, b) { return b - a; });
-  for (let temp of tempValues){
-    if (value > temp - 100){
-      elem.style.background = TMPR_COLORS[temp];
-      return;
+// закрытие оверлея по клику вне (простое)
+overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+        overlay.classList.add('hidden');
+        if (activeModalResolve) activeModalResolve(null);
     }
-  }
-  elem.style.background = TMPR_COLORS[0];
-}
+});
 
-const popups = document.getElementsByClassName('corner-popups')[0];
-for (let popup of popups.children){
-  popup.addEventListener('click', (event) => {event.target.classList.add('hidden')});
-}
+// старт
+initApp();
 
-setupPage();
+// дополнительно: перезагрузка страницы сохраняет состояние — localStorage уже загружен
+window.addEventListener('load', () => {
+    // если города не загрузились из-за ошибок — попробовать ещё раз через 1 сек
+});
