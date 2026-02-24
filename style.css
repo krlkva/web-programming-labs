@@ -290,3 +290,44 @@ button:hover {
     .button-group { justify-content: flex-end; }
     .day-card { min-width: 80px; }
 }
+
+/* Дополнения к стилям */
+.loading-spinner {
+    display: none;
+    text-align: center;
+    padding: 30px;
+    color: #2d4a6e;
+    font-size: 1.1rem;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.loading-spinner::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    border: 3px solid #cbd6e4;
+    border-top-color: #2d4a6e;
+    border-radius: 50%;
+    animation: spinner 0.8s linear infinite;
+}
+
+@keyframes spinner {
+    to { transform: rotate(360deg); }
+}
+
+.condition-icon {
+    font-size: 0.95rem;
+    color: #3a5b7e;
+    margin-top: 6px;
+    text-transform: capitalize;
+}
+
+.badge {
+    background: #e0eaff;
+    border-radius: 40px;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    color: #1d3249;
+}
