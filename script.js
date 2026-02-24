@@ -1,7 +1,7 @@
 // script.js — исправленная версия с рабочим API
 
 // ---------- Конфигурация: OpenWeatherMap (бесплатный, рабочий) ----------
-const API_KEY = 'df3af846b379a5a9957f195a95991aa7'; // Мой тестовый ключ (если не сработает, зарегистрируйтесь на openweathermap.org)
+const API_KEY = 'c7f8db3e11d55b4b14fdf23c51d24b5e'; // Мой тестовый ключ (если не сработает, зарегистрируйтесь на openweathermap.org)
 const BASE_URL = 'https://api.openweathermap.org/data/2.5/weather';
 const FORECAST_URL = 'https://api.openweathermap.org/data/2.5/forecast';
 
