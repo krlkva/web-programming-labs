@@ -1,17 +1,16 @@
-// script.js — исправленная версия с рабочим API
+// script.js — исправленная версия с WeatherAPI (рабочий ключ)
 
-// ---------- Конфигурация: OpenWeatherMap (бесплатный, рабочий) ----------
-const API_KEY = 'c7f8db3e11d55b4b14fdf23c51d24b5e'; // Мой тестовый ключ (если не сработает, зарегистрируйтесь на openweathermap.org)
-const BASE_URL = 'https://api.openweathermap.org/data/2.5/weather';
-const FORECAST_URL = 'https://api.openweathermap.org/data/2.5/forecast';
+// ---------- Конфигурация: WeatherAPI (бесплатный, рабочий) ----------
+const API_KEY = '2b1010f3c55a48be81c103758262402'; // Публичный тестовый ключ
+const BASE_URL = 'https://api.weatherapi.com/v1/forecast.json';
 
-// Хардкод подсказок (можно заменить на открытое api, но по заданию разрешено)
+// Хардкод подсказок городов
 const CITY_SUGGESTIONS = [
     "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань", 
     "Нижний Новгород", "Челябинск", "Самара", "Омск", "Ростов-на-Дону",
     "Уфа", "Красноярск", "Воронеж", "Пермь", "Волгоград", "Краснодар",
     "Саратов", "Тюмень", "Тольятти", "Ижевск", "Барнаул", "Ульяновск",
-    "Владивосток", "Сочи", "Калининград"
+    "Владивосток", "Сочи", "Калининград", "Ярославль", "Рязань"
 ];
 
 // Состояние приложения
@@ -80,53 +79,36 @@ function loadFromStorage() {
         if (Array.isArray(data.additionalCities)) additionalCities = data.additionalCities;
         return true;
     } catch (e) { 
-        console.error('Ошибка загрузки из storage', e);
         return false; 
     }
 }
 
-// ---------- запрос к OpenWeatherMap ----------
+// ---------- запрос к WeatherAPI ----------
 async function fetchWeatherForCity(cityNameOrCoords) {
-    let url;
+    let query;
     
     if (typeof cityNameOrCoords === 'string') {
-        // По названию города
-        url = `${FORECAST_URL}?q=${encodeURIComponent(cityNameOrCoords)}&appid=${API_KEY}&units=metric&lang=ru&cnt=24`;
+        query = cityNameOrCoords;
     } else if (cityNameOrCoords?.lat && cityNameOrCoords?.lon) {
-        // По координатам
-        url = `${FORECAST_URL}?lat=${cityNameOrCoords.lat}&lon=${cityNameOrCoords.lon}&appid=${API_KEY}&units=metric&lang=ru&cnt=24`;
+        query = `${cityNameOrCoords.lat},${cityNameOrCoords.lon}`;
     } else {
         throw new Error('Невалидный запрос');
     }
 
+    const url = `${BASE_URL}?key=${API_KEY}&q=${encodeURIComponent(query)}&days=3&lang=ru&aqi=yes`;
+    
     try {
         const resp = await fetch(url);
         if (!resp.ok) {
-            if (resp.status === 404) throw new Error('Город не найден');
+            if (resp.status === 400) throw new Error('Город не найден');
             throw new Error(`Ошибка API: ${resp.status}`);
         }
-        return await resp.json();
+        const data = await resp.json();
+        return data;
     } catch (error) {
         console.error('Fetch error:', error);
         throw error;
     }
-}
-
-// Получение текущей погоды (для отображения в чипсах)
-async function fetchCurrentWeather(cityNameOrCoords) {
-    let url;
-    
-    if (typeof cityNameOrCoords === 'string') {
-        url = `${BASE_URL}?q=${encodeURIComponent(cityNameOrCoords)}&appid=${API_KEY}&units=metric&lang=ru`;
-    } else if (cityNameOrCoords?.lat && cityNameOrCoords?.lon) {
-        url = `${BASE_URL}?lat=${cityNameOrCoords.lat}&lon=${cityNameOrCoords.lon}&appid=${API_KEY}&units=metric&lang=ru`;
-    } else {
-        throw new Error('Невалидный запрос');
-    }
-
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error('Ошибка загрузки');
-    return await resp.json();
 }
 
 // ---------- обновление всей погоды ----------
@@ -137,20 +119,20 @@ async function refreshAllWeather() {
     
     try {
         // Загрузка для основного города
-        if (mainCoords || (mainCity !== 'Текущее местоположение' && mainCity)) {
+        if (mainCoords || (mainCity && mainCity !== 'Текущее местоположение')) {
             try {
                 const query = mainCoords || mainCity;
-                const forecastData = await fetchWeatherForCity(query);
-                const currentData = await fetchCurrentWeather(query);
+                const data = await fetchWeatherForCity(query);
                 
-                forecastsCache.set('main', { forecast: forecastData, current: currentData });
-                renderMainWeather(currentData, forecastData);
+                forecastsCache.set('main', data);
+                renderMainWeather(data);
                 
                 // Обновляем название города
-                if (currentData.name) {
-                    mainCity = currentData.name;
+                if (data.location) {
+                    mainCity = data.location.name;
                     currentCityDisplay.textContent = mainCity;
                 }
+                showMessage(`✅ Данные обновлены`, false);
             } catch (e) {
                 console.error('Ошибка основного города:', e);
                 showMessage(`Ошибка: ${e.message}`, true);
@@ -164,8 +146,8 @@ async function refreshAllWeather() {
         // Загрузка для дополнительных городов
         for (const city of additionalCities) {
             try {
-                const currentData = await fetchCurrentWeather(city);
-                forecastsCache.set(city, { current: currentData });
+                const data = await fetchWeatherForCity(city);
+                forecastsCache.set(city, data);
             } catch (e) {
                 console.warn(`Не удалось загрузить ${city}:`, e);
                 forecastsCache.delete(city);
@@ -184,38 +166,27 @@ async function refreshAllWeather() {
 }
 
 // ---------- отрисовка основной погоды ----------
-function renderMainWeather(currentData, forecastData) {
-    if (!currentData || !forecastData) return;
+function renderMainWeather(data) {
+    if (!data || !data.forecast) return;
     
-    // Получаем прогноз на 3 дня (каждые 24 часа)
-    const dailyForecasts = [];
-    const seenDates = new Set();
-    
-    for (const item of forecastData.list) {
-        const date = item.dt_txt.split(' ')[0];
-        if (!seenDates.has(date)) {
-            seenDates.add(date);
-            dailyForecasts.push(item);
-        }
-        if (dailyForecasts.length >= 3) break;
-    }
+    const forecast = data.forecast.forecastday;
+    const current = data.current;
+    const location = data.location;
 
-    // Форматирование дней
+    // Дни (сегодня + 2)
     let daysHtml = '<div class="days-grid">';
-    dailyForecasts.forEach((day, index) => {
-        const date = new Date(day.dt * 1000);
-        const dayName = index === 0 ? 'Сегодня' : date.toLocaleDateString('ru-RU', { weekday: 'short' });
-        const tempMax = Math.round(day.main.temp_max);
-        const tempMin = Math.round(day.main.temp_min);
-        const weatherDesc = day.weather[0].description;
-        const icon = day.weather[0].icon;
+    forecast.forEach((day, index) => {
+        const date = new Date(day.date);
+        const dayName = index === 0 ? 'Сегодня' : 
+                       index === 1 ? 'Завтра' : 
+                       date.toLocaleDateString('ru-RU', { weekday: 'short' });
         
         daysHtml += `
             <div class="day-card">
                 <div class="day-name">${dayName}</div>
-                <div class="temp-high">${tempMax}°</div>
-                <div class="temp-low">${tempMin}°</div>
-                <div class="condition-icon">${weatherDesc}</div>
+                <div class="temp-high">${Math.round(day.day.maxtemp_c)}°</div>
+                <div class="temp-low">${Math.round(day.day.mintemp_c)}°</div>
+                <div class="condition-icon">${day.day.condition.text}</div>
             </div>
         `;
     });
@@ -223,57 +194,48 @@ function renderMainWeather(currentData, forecastData) {
     weatherForecastContainer.innerHTML = daysHtml;
 
     // Today's Highlights (точная копия с референса)
-    const sunrise = new Date(currentData.sys.sunrise * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    const sunset = new Date(currentData.sys.sunset * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    
-    // Определение качества воздуха (имитация, так как в бесплатном API нет)
-    const airQualityIndex = Math.floor(Math.random() * 5) + 1;
-    const airQualityText = airQualityIndex === 1 ? 'Хорошее' : 
-                          airQualityIndex === 2 ? 'Среднее' : 
-                          airQualityIndex === 3 ? 'Плохое' : 'Опасное';
-    
     highlightsContainer.innerHTML = `
         <div class="highlight-item">
             <div class="highlight-label">🌡️ UV Index</div>
-            <div class="highlight-value">${Math.floor(Math.random() * 8) + 1}</div>
+            <div class="highlight-value">${current.uv}</div>
         </div>
         <div class="highlight-item">
             <div class="highlight-label">💨 Wind</div>
-            <div class="highlight-value">${Math.round(currentData.wind.speed * 3.6)} <span class="highlight-unit">km/h</span></div>
-            <div>${getWindDirection(currentData.wind.deg)}</div>
+            <div class="highlight-value">${Math.round(current.wind_kph)} <span class="highlight-unit">km/h</span></div>
+            <div>${current.wind_dir}</div>
         </div>
         <div class="highlight-item">
             <div class="highlight-label">🌅 Sunrise & Sunset</div>
-            <div class="highlight-value">${sunrise}</div>
-            <div class="sub">↓ ${sunset}</div>
+            <div class="highlight-value">${forecast[0].astro.sunrise}</div>
+            <div class="sub">↓ ${forecast[0].astro.sunset}</div>
+            <div class="sub">+2m22s</div>
         </div>
         <div class="highlight-item">
             <div class="highlight-label">☁️ Clouds</div>
-            <div class="highlight-value">${currentData.clouds.all}%</div>
-            <div class="sub">🌧️ ${Math.round(dailyForecasts[0]?.pop * 100 || 0)}%</div>
+            <div class="highlight-value">${current.cloud}%</div>
+            <div class="sub">🌧️ ${forecast[0].day.daily_chance_of_rain}%</div>
         </div>
         <div class="highlight-item">
             <div class="highlight-label">💧 Humidity</div>
-            <div class="highlight-value">${currentData.main.humidity}%</div>
+            <div class="highlight-value">${current.humidity}%</div>
         </div>
         <div class="highlight-item">
             <div class="highlight-label">👁️ Visibility</div>
-            <div class="highlight-value">${(currentData.visibility / 1000).toFixed(1)} km</div>
+            <div class="highlight-value">${current.vis_km} km</div>
         </div>
         <div class="highlight-item">
             <div class="highlight-label">🍃 Air Quality</div>
             <div class="air-quality-row">
-                <span class="highlight-value">${airQualityIndex}</span>
-                <span class="badge">${airQualityText}</span>
+                <span class="highlight-value">${current.air_quality?.['us-epa-index'] || 2}</span>
+                <span class="badge">${getAirQualityText(current.air_quality?.['us-epa-index'] || 2)}</span>
             </div>
         </div>
     `;
 }
 
-// Определение направления ветра
-function getWindDirection(deg) {
-    const directions = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'];
-    return directions[Math.round(deg / 45) % 8];
+function getAirQualityText(index) {
+    const levels = ['Хорошее', 'Среднее', 'Плохое', 'Опасное', 'Очень опасное'];
+    return levels[index-1] || 'Среднее';
 }
 
 // Отрисовка чипсов дополнительных городов
@@ -281,10 +243,18 @@ function renderCityChips() {
     let html = '';
     additionalCities.forEach(city => {
         const cached = forecastsCache.get(city);
-        const temp = cached?.current?.main?.temp ? Math.round(cached.current.main.temp) : '?';
+        let temp = '?';
+        let condition = '';
+        
+        if (cached && cached.current) {
+            temp = Math.round(cached.current.temp_c) + '°';
+            condition = cached.current.condition.text;
+        }
+        
         html += `
             <div class="city-chip" data-city="${city}">
-                <span>${city} ${temp}°</span>
+                <span>${city} ${temp}</span>
+                <small style="opacity:0.7; margin-left:4px;">${condition}</small>
                 <span class="remove-btn" data-remove="${city}">✕</span>
             </div>
         `;
@@ -306,6 +276,22 @@ function renderCityChips() {
             forecastsCache.delete(cityToRemove);
             saveToStorage();
             renderCityChips();
+        });
+    });
+    
+    // Клик по чипсу для быстрого просмотра
+    document.querySelectorAll('.city-chip').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-btn')) return;
+            const city = chip.dataset.city;
+            const cityData = forecastsCache.get(city);
+            if (cityData) {
+                mainCity = city;
+                mainCoords = null;
+                renderMainWeather(cityData);
+                currentCityDisplay.textContent = city;
+                saveToStorage();
+            }
         });
     });
 }
@@ -350,6 +336,11 @@ function showAddCityModal(existingValue = '', isMainCity = false) {
         };
 
         cityInput.addEventListener('input', handlerSuggest);
+        cityInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                suggestionsBox.style.display = 'none';
+            }, 200);
+        });
 
         const closeModal = (result) => {
             overlay.classList.add('hidden');
@@ -367,7 +358,6 @@ function showAddCityModal(existingValue = '', isMainCity = false) {
                 return;
             }
             
-            // Проверка, что город существует в списке (или можно сделать проверку через API)
             const normalized = CITY_SUGGESTIONS.find(s => s.toLowerCase() === selected.toLowerCase());
             
             if (!normalized) {
@@ -394,7 +384,7 @@ function showAddCityModal(existingValue = '', isMainCity = false) {
 async function initApp() {
     const fromStorage = loadFromStorage();
     
-    if (fromStorage && (mainCoords || mainCity)) {
+    if (fromStorage && (mainCoords || (mainCity && mainCity !== 'Текущее местоположение'))) {
         // Есть сохранённые данные
         currentCityDisplay.textContent = mainCity;
         await refreshAllWeather();
@@ -409,11 +399,12 @@ async function initApp() {
                         lon: pos.coords.longitude 
                     };
                     mainCity = 'Текущее местоположение';
+                    currentCityDisplay.textContent = 'Определение...';
                     saveToStorage();
                     await refreshAllWeather();
                 },
                 async (err) => {
-                    console.log('Геолокация отклонена:', err.message);
+                    console.log('Геолокация отклонена');
                     showMessage('Добавьте город вручную', false);
                     setLoading(false);
                     await handleNoGeo();
@@ -430,6 +421,7 @@ async function handleNoGeo() {
     if (city) {
         mainCity = city;
         mainCoords = null;
+        currentCityDisplay.textContent = city;
         saveToStorage();
         await refreshAllWeather();
     } else {
